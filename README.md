@@ -6,19 +6,6 @@ This project simulates a simplified fire truck robot in a virtual environment. I
 
 ---
 
-## Table of Contents
-1. [Overview](#overview)
-2. [Features](#features)
-3. [Getting Started](#getting-started)
-   - [Prerequisites](#prerequisites)
-   - [Installation](#installation)
-4. [Usage](#usage)
-5. [File Structure](#file-structure)
-6. [Future Improvements](#future-improvements)
-7. [Acknowledgments](#acknowledgments)
-
----
-
 ## Overview
 The project demonstrates the integration of:
 - A **simplified fire truck URDF model**, showcasing the vehicle's key features such as wheels, chassis, and extendable ladder.
@@ -38,26 +25,23 @@ This simulation is ideal for testing robotic control systems and planners in a r
   
 - **Path Planning**:
   - Avoids static obstacles using custom algorithms.
-  - Utilizes a goal-driven approach to navigate toward the building.
+  - Utilizes the motion primitives method to navigate toward the building.
   
 - **Ladder Deployment**:
-  - Simulates the ladder raising once the fire truck reaches the target.
+  - Uses an RRT* planner to find a way to get the top of the ladder to the target
+  - Simulates the ladder raising once the fire truck reaches the building.
 
 ---
 
-## Getting Started
-
-### Prerequisites
-- [ROS 2](https://docs.ros.org/en/rolling/Installation.html)
-- [Gazebo](http://gazebosim.org/)
-- Python 3.9+ (for the planner scripts)
-- Dependencies for the planner:
-  - `numpy`
-  - `scipy`
-  - `matplotlib`
-
 ### Installation
-1. Clone the repository:
+1. Install the simulation environment:
+
+``` {.sourceCode .bash}
+pip3 install urdfenvs
+```
+
+2. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/firetruck_simulation.git
-   cd firetruck_simulation
+   git clone git@github.com:mugiwaranolstar/PDM-group-33.git
+   cd PDM-group-33
+

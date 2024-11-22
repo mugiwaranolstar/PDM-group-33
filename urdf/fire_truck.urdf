@@ -49,13 +49,13 @@
     <collision>
       <origin rpy="1.5708  0 0" xyz="0 0 0"/>
       <geometry>
-        <cylinder length='0.05' radius= '0.15'/>
+        <cylinder length='0.06' radius= '0.15'/>
       </geometry>
     </collision>
     <visual>
       <origin rpy="1.5708  0 0" xyz="0 0 0"/>
       <geometry>
-        <cylinder length='0.05' radius= '0.15'/>
+        <cylinder length='0.06' radius= '0.15'/>
       </geometry>
       <material name="darkgrey"/>
     </visual>
@@ -70,13 +70,13 @@
     <collision>
       <origin rpy="1.5708  0 0" xyz="0 0 0"/>
       <geometry>
-        <cylinder length='0.05' radius= '0.15'/>
+        <cylinder length='0.06' radius= '0.15'/>
       </geometry>
     </collision>
     <visual>
       <origin rpy="1.5708  0 0" xyz="0 0 0"/>
       <geometry>
-        <cylinder length='0.05' radius= '0.15'/>
+        <cylinder length='0.06' radius= '0.15'/>
       </geometry>
       <material name="darkgrey"/>
     </visual>
@@ -91,13 +91,13 @@
     <collision>
       <origin rpy="1.5708  0 0" xyz="0 0 0"/>
       <geometry>
-        <cylinder length='0.05' radius= '0.15'/>
+        <cylinder length='0.06' radius= '0.15'/>
       </geometry>
     </collision>
     <visual>
       <origin rpy="1.5708  0 0" xyz="0 0 0"/>
       <geometry>
-        <cylinder length='0.05' radius= '0.15'/>
+        <cylinder length='0.06' radius= '0.15'/>
       </geometry>
       <material name="darkgrey"/>
     </visual>
@@ -171,7 +171,7 @@
   <joint name="left_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="left_wheel"/>
-    <origin xyz="-0.3 -0.4 0" rpy="0 0 0"/>
+    <origin xyz="-0.28 -0.4 0" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <limit effort="100" velocity="20"/>
   </joint>
@@ -180,7 +180,7 @@
   <joint name="right_wheel_joint" type="continuous">
     <parent link="base_link"/>
     <child link="right_wheel"/>
-    <origin xyz="-0.3 0.4 0" rpy="0 0 0"/>
+    <origin xyz="-0.28 0.4 0" rpy="0 0 0"/>
     <axis xyz="0 1 0" rpy="0 0 0"/>
     <limit effort="100" velocity="20"/>
   </joint>
@@ -212,9 +212,9 @@
   <joint name="extend_joint" type="prismatic">
     <parent link="stairs"/>
     <child link="stairs_extension"/>
-    <origin xyz="0.25 0 0.05" rpy="0 0 0"/>
+    <origin xyz="0.25 0 0" rpy="0 0 0"/>
     <axis xyz="1 0 0"/>
-    <limit effort="50" lower="0" upper="0.5" velocity="1.0"/> 
+    <limit effort="50" lower="0" upper="2" velocity="1.0"/> 
   </joint>
 
 </robot>

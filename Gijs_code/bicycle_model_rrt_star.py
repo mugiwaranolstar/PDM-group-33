@@ -191,12 +191,11 @@ def rrt(start, goal, obstacles):
                 lineWidth=1.0
             )
 
-            p.addUserDebugLine(
-                [new_state[0] - 0.1, new_state[1] - 0.1, 0.1],  # Starting point of the dot
-                [new_state[0] + 0.1, new_state[1] + 0.1, 0.1],  # Ending point of the dot (same as the start)
-                [1, 0.4, 0.7],  # Blue color for the node (change to [0.5, 0, 1] for purple)
-                lineWidth=2.0  # Use a higher line width for visibility
-            )
+            sphere_id = p.loadURDF(
+            "sphere_small.urdf",
+            [new_state[0], new_state[1], 0.1],  # Position of the sphere
+            globalScaling=0.1  # Adjust this value to control the size of the spheres
+)           
             #sphere_id = p.loadURDF("sphere_small.urdf", [new_state[0], new_state[1], GOAL_THRESHOLD], globalScaling=GOAL_THRESHOLD * 2)
 
             #p.changeVisualShape(sphere_id, -1, rgbaColor=[1, 0.4, 0.7, 1])  # Pink color (adjust RGB as needed)
@@ -268,7 +267,7 @@ if __name__ == "__main__":
     goal = (6, -3, 0)
 
     # Load the fire truck
-    fire_truck = p.loadURDF("fire_truck.urdf", [start[0], start[1], 0.1], [0, 0, 0, 1])
+    fire_truck = p.loadURDF("../urdf/fire_truck.urdf", [start[0], start[1], 0.1], [0, 0, 0, 1])
 
     # Create the environment with the goal marker
     obstacles = create_environment(goal)

@@ -20,7 +20,7 @@ def main():
     ocp.model = model
 
     # Define simulation parameters
-    Tf = 2 # Total time horizon [s]
+    Tf = 1 # Total time horizon [s]
     N = 20    # Prediction horizon (number of intervals)
     nx = model.x.rows()  # Number of states
     nu = model.u.rows()  # Number of control inputs
@@ -33,7 +33,7 @@ def main():
     ocp.solver_options.tf = Tf
 
     # Define cost matrices
-    Q = np.diag([1.0, 1.0, 0.5, 0.5])  # State cost
+    Q = 100*np.diag([1.0, 1.0, 0.5, 0.5])  # State cost
     R = np.diag([0.01, 0.01])              # Control cost
     Qf = np.diag([2.0, 2.0, 1.0, 1.0])  # Terminal state cost
 
@@ -50,19 +50,24 @@ def main():
     ocp.cost.W_e = Qf
 
     # Define control constraints
-    MAX_ACCEL = 1000.0       # Maximum acceleration [m/s^2]
-    MAX_STEER = np.deg2rad(75.0)  # Maximum steering angle [rad]
-    MAX_SPEED = 550.0 / 3.6  # Maximum speed [m/s]
+    MAX_ACCEL = 1.0       # Maximum acceleration [m/s^2]
+    MAX_STEER = np.deg2rad(45.0)  # Maximum steering angle [rad]
+    MAX_SPEED = 55.0 / 3.6  # Maximum speed [m/s]
+    MIN_SPEED = -20 / 3.6
 
     # Control bounds
     ocp.constraints.lbu = np.array([-MAX_ACCEL, -MAX_STEER])
     ocp.constraints.ubu = np.array([MAX_ACCEL, MAX_STEER])
     ocp.constraints.idxbu = np.array([0, 1])  # Indices of control constraints (acceleration, steering)
 
-    # State constraints
-    ocp.constraints.idxbx = np.array([2])  # Index for velocity (v)
-    ocp.constraints.lbx = np.array([0.0])  # Minimum velocity
-    ocp.constraints.ubx = np.array([MAX_SPEED])  # Maximum velocity
+    # State constraints (velocity and heading angle)
+    MARGIN = 0.1  # Small margin to avoid singularities in tan(phi)/L
+
+    # State constraints (x, y, velocity, and heading angle)
+    MARGIN = 0.01  # Small margin to avoid singularities in tan(phi)/L
+    ocp.constraints.idxbx = np.array([0, 1, 2, 3])  # Indices for x, y, v, theta
+    ocp.constraints.lbx = np.array([-8.0, -8.0, MIN_SPEED, -np.pi/2 + MARGIN])  # Lower bounds for [x, y, v, theta]
+    ocp.constraints.ubx = np.array([8.0, 8.0, MAX_SPEED, np.pi/2 - MARGIN])  # Upper bounds for [x, y, v, theta]
 
     # Initial state constraint
     ocp.constraints.x0 = np.zeros(nx)  # Set the initial state as zero
@@ -132,13 +137,17 @@ def main():
     if status != 0:
         print(f"Solver failed with status {status}.")
         return
-
+    
     # Extract the solution and log for debugging
-    for i in range(N):
-        simX[i, :] = ocp_solver.get(i, "x")  # Extract state at step i
-        simU[i, :] = ocp_solver.get(i, "u")  # Extract control input at step i
-        print(f"Step {i}: State {simX[i, :]}, Control {simU[i, :]}")  # Debugging output
-    simX[N, :] = ocp_solver.get(N, "x")  # Extract final state
+    for t in range(N + 1):  # Start from 1 to avoid overwriting the initial state
+        if i > 0:
+            simX[t, :] = ocp_solver.get(t, "x")  # Extract state at step i
+        else:
+            simX[t, :] = initial_state
+    for t in range(N):
+        simU[t, :] = ocp_solver.get(t, "u")  # Extract control input at step i-1
+        print(f"Step {t}: State {simX[t, :]}, Control {simU[t, :]}")
+
     print(f"Final State: {simX[N, :]}")
 
     # Ensure all states are properly extracted

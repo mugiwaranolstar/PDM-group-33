@@ -13,7 +13,9 @@ import random
 ###############################################################################
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-path_path = os.path.join(script_dir, "..", "Gijs_code", "Random.csv")
+# path_path = os.path.join(script_dir, "..", "Gijs_code", "Random.csv")
+path_path = os.path.join(script_dir, "..", "Gijs_code", "best_path.csv")
+
 best_path_array = pd.read_csv(path_path)
 best_path_array = np.array(best_path_array)
 
@@ -24,33 +26,39 @@ obstacles_for_display = np.array(pd.read_csv(obstacles_path))
 # PROBLEM SETUP
 NX = 4  
 NU = 2  
-T = 25  
-ROBOT_RADIUS = 0.25
+T = 100 
+DT = 0.05
+
 
 R = np.diag([0.01, 0.01])
 Rd = np.diag([0.01, 1.0])
-Q = 10* np.diag([1.0, 1.0, 0.5, 0.5])
-Qf = Q
+Q = np.diag([0.001, 0.001, 0.1, 0.1])
+Qf = 10*Q
 
-print(f"Using T={T}, DT=0.03, total horizon = {T*0.03}s")
+print(f"Using T={T}, DT={DT}, total horizon = {T*0.03}s")
 
-GOAL_DIS = 0.5
-STOP_SPEED = 0.5/3.6
+GOAL_DIS = 0.2
+STOP_SPEED = 0/3.6
 MAX_TIME = 500.0
-TARGET_SPEED = 10.0/3.6
-DT = 0.03
+TARGET_SPEED =50.0/3.6
 MAX_ITER = 3
 DU_TH = 0.1
 LENGTH = 0.5
 WIDTH = 0.25
-WB = 0.78
-MAX_STEER = np.deg2rad(60.0)
-MAX_DSTEER = np.deg2rad(90.0)
-MAX_SPEED = 55.0/3.6
+WB = 0.5  # Wheelbase 
+MAX_STEER = np.deg2rad(45.0)  # Maximum steering angle in radians
+MAX_DSTEER = np.deg2rad(30.0)  # Maximum steering speed in radians per second
+MAX_SPEED = 50/3.6
 MIN_SPEED = -20.0/3.6
-MAX_ACCEL = 1.0
+MAX_ACCEL = 3.0  # Maximum acceleration/deceleration in m/s^2
+
+ROBOT_RADIUS = math.hypot(LENGTH / 2, WIDTH / 2)
+DISTANCE_WEIGHT = 100 # Weight for distance optimization
 
 show_animation = True
+
+# Define the single obstacle
+obstacles = [(2, 0, 0.5)]  # Single red obstacle at (2,0) with radius 0.5
 
 class State:
     def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0):
@@ -69,19 +77,19 @@ def angle_mod(x, zero_2_2pi=False, degree=False):
         mod_angle = (x+math.pi) % (2*math.pi) - math.pi
     if degree:
         mod_angle = np.rad2deg(mod_angle)
-    return mod_angle
+    return mod_angle    
 
 
-def plot_truck(ax, state, length=0.5, width=0.25):
-    """Plot a rectangle of size length x width at (state.x, state.y, yaw)."""
+def plot_truck(ax, state):
+    """Plot a rectangle of size LENGTH x WIDTH at (state.x, state.y, yaw)."""
     cx, cy, yaw = state.x, state.y, state.yaw
 
     # corners in local coordinates:  +x forward, +y left (for example)
     corners_local = np.array([
-        [+length/2, +width/2],
-        [+length/2, -width/2],
-        [-length/2, -width/2],
-        [-length/2, +width/2],
+        [+LENGTH/2, +WIDTH/2],
+        [+LENGTH/2, -WIDTH/2],
+        [-LENGTH/2, -WIDTH/2],
+        [-LENGTH/2, +WIDTH/2],
     ])
     # rotation
     R = np.array([
@@ -218,8 +226,6 @@ def get_switch_back_course(dl):
     cx, cy, cyaw, ck, s = calc_spline_course(ax, ay, ds=dl)
     return cx, cy, cyaw, ck
 
-
-
 ###############################################################################
 # MODEL, OBSTACLE ETC.
 ###############################################################################
@@ -317,22 +323,30 @@ def linear_mpc_control_with_obstacles(xref, xbar, x0, dref, obstacle_linear_term
     constraints = []
 
     for t in range(T):
+        # Cost function control effort 
         cost += cvxpy.quad_form(u[:, t], R)
+        # Reference tracking, deviation from states
         if t != 0:
-            cost += cvxpy.quad_form(xref[:, t] - x[:, t], Q)
+            cost += cvxpy.quad_form(xref[:, t] - x[:, t], Q) 
 
+        # Dynamic constraints
         A, B, C = get_linear_model_matrix(xbar[2,t], xbar[3,t], dref[0,t])
         constraints += [x[:, t+1] == A@x[:, t] + B@u[:, t] + C]
 
         if t < T-1:
-            cost += cvxpy.quad_form(u[:, t+1]-u[:, t], Rd)
-            constraints += [cvxpy.abs(u[1, t+1] - u[1, t]) <= MAX_DSTEER*DT]
+            cost += cvxpy.quad_form(u[:, t+1]-u[:, t], Rd)  # Penalizing deviation control input
+            constraints += [cvxpy.abs(u[1, t+1] - u[1, t]) <= MAX_DSTEER*DT]   # Constrain
+            # Distance optimization cost
+            cost += DISTANCE_WEIGHT * (
+                (x[0, t+1] - x[0, t])**2 +
+                (x[1, t+1] - x[1, t])**2
+            )
 
-        # Only 1 obstacle:
+        # Obstacle avoidance constraints    
         nx_ = obstacle_linear_terms[t][0,0]
         ny_ = obstacle_linear_terms[t][0,1]
-        b_  = obstacle_linear_terms[t][0,2]
-        constraints += [nx_*x[0,t] + ny_*x[1,t] <= b_]
+        b_  = obstacle_linear_terms[t][0,2] 
+        constraints += [nx_*x[0,t] + ny_*x[1,t] <= b_] # Constraint for only one obstacle
 
     cost += cvxpy.quad_form(xref[:, T] - x[:, T], Qf)
     constraints += [x[:,0] == x0]
@@ -462,8 +476,7 @@ def do_simulation_with_obstacle(cx, cy, cyaw, ck, sp, dl, initial_state):
     xbar = np.tile(np.array([state.x, state.y, state.v, state.yaw]).reshape(-1,1), (1,T+1))
     # xbar = np.copy(xref)
 
-    # Define the single obstacle
-    obstacles = [(2, 0, 0.75)]  # Single red obstacle at (2,0) with radius 0.5
+
 
     while time_ <= MAX_TIME:
         xref, ind, dref = calc_ref_trajectory(state, cx, cy, cyaw, ck, sp, dl)
@@ -518,7 +531,7 @@ def do_simulation_with_obstacle(cx, cy, cyaw, ck, sp, dl, initial_state):
             plt.scatter([state.x], [state.y], color='green', s=50, marker='o')
 
             # Plot the rectangle truck
-            plot_truck(plt.gca(), state, length=0.5, width=0.25)
+            plot_truck(plt.gca(), state)
             plt.axis('equal')
             plt.pause(0.001)
     return traj_x, traj_y, traj_yaw, traj_v
@@ -531,6 +544,7 @@ def main():
 
     sp = [TARGET_SPEED]*len(cx)
     initial_state = State(x=cx[0], y=cy[0], yaw=cyaw[1], v=0.0)
+    # obstacles is already defined as a global variable at the start of the code
 
     # Notice we do NOT pass obstacles_for_display to do_simulation
     # Instead, do_simulation will build a single obstacle constraint at (2,0).
@@ -544,8 +558,9 @@ def main():
             circle = plt.Circle((obs[0], obs[1]), obs[2], color='b', alpha=0.3)
             plt.gca().add_artist(circle)
         # single red obstacle
-        circle_red = plt.Circle((2,0), 0.5, color='r', alpha=0.8)
-        plt.gca().add_artist(circle_red)
+        for obs in obstacles:
+            circle_red = plt.Circle((obs[0], obs[1]), obs[2], color='r', alpha=0.8)
+            plt.gca().add_artist(circle_red)
 
         plt.plot(x, y, '-g', label='MPC Path')
         plt.axis('equal')

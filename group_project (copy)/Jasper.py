@@ -13,77 +13,94 @@ import random
 ###############################################################################
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
+# path_path = os.path.join(script_dir, "..", "Gijs_code", "Random.csv")
 path_path = os.path.join(script_dir, "..", "Gijs_code", "best_path.csv")
+
 best_path_array = pd.read_csv(path_path)
 best_path_array = np.array(best_path_array)
 
-# Obstacles: each row [obs_x, obs_y, obs_radius]
+# Obstacles from CSV (for visualization ONLY, not used in constraints)
 obstacles_path = os.path.join(script_dir, "..", "Gijs_code", "obstacles.csv")
-obstacles_array = np.array(pd.read_csv(obstacles_path))
+obstacles_for_display = np.array(pd.read_csv(obstacles_path))
 
-# Problem dimensions
-NX = 4  # state: x, y, v, yaw
-NU = 2  # control: accel, steer
-T = 15  # MPC horizon length
+# PROBLEM SETUP
+NX = 4  
+NU = 2  
+T = 100 
+DT = 0.1
 
-# Robot rectangle: LENGTH x WIDTH = 1.0 x 0.5
-# We approximate the robot by a bounding circle:
-ROBOT_RADIUS = 0.6  # Slightly bigger than half the diagonal of 1.0x0.5
+R = np.diag([0.01, 0.01])
+Rd = np.diag([0.01, 1.0])
+Q = np.diag([0.001, 0.001, 0.1, 0.1])
+Qf = 10*Q
 
-# MPC weighting matrices
-R = np.diag([0.01, 0.01])      # Input cost
-Rd = np.diag([0.01, 1.0])      # Input difference cost
-Q = np.diag([1.0, 1.0, 0.5, 0.5])  # State cost
-Qf = Q  # Final state cost
+print(f"Using T={T}, DT={DT}, total horizon = {T*DT}s")
 
-# Goal / time parameters
-GOAL_DIS = 0.5         # Stop if within 0.2 [m]
-STOP_SPEED = 0.5 / 3.6       # optional speed threshold
-MAX_TIME = 500.0       # maximum simulation time [s]
-
-# Vehicle constraints
-TARGET_SPEED = 10.0 / 3.6
-DT = 0.03              # time step [s]
-MAX_ITER = 3           # not used here in a loop, but can be used for repeated linearization
+GOAL_DIS = 0.2
+STOP_SPEED = 0/3.6
+MAX_TIME = 500.0
+TARGET_SPEED =25.0/3.6
+MAX_ITER = 3
 DU_TH = 0.1
+LENGTH = 1
+WIDTH = 0.5
+WB = 0.5  # Wheelbase 
+MAX_STEER = np.deg2rad(45.0)  # Maximum steering angle in radians
+MAX_DSTEER = np.deg2rad(30.0)  # Maximum steering speed in radians per second
+MAX_SPEED = 50/3.6
+MIN_SPEED = -20.0/3.6
+MAX_ACCEL = 3.0  # Maximum acceleration/deceleration in m/s^2
 
-# Physical constraints
-LENGTH = 2.5           # [m]
-WIDTH = 1           # [m]
-WB = 0.78              # wheelbase
-MAX_STEER = np.deg2rad(60.0)
-MAX_DSTEER = np.deg2rad(90.0)
-MAX_SPEED = 55.0 / 3.6
-MIN_SPEED = -20 / 3.6
-MAX_ACCEL = 1.0
+ROBOT_RADIUS = math.hypot(LENGTH / 2, WIDTH / 2)
+DISTANCE_WEIGHT = 100 # Weight for distance optimization
 
 show_animation = True
 
-###############################################################################
-# 2) UTILITY CLASSES & FUNCTIONS
-###############################################################################
+# Define the single obstacle
+# obstacles = [(2, 0, 0.5)]  # Single red obstacle at (2,0) with radius 0.5
 
 class State:
-    """Simple class to hold the vehicle state (x, y, yaw, velocity)."""
     def __init__(self, x=0.0, y=0.0, yaw=0.0, v=0.0):
         self.x = x
         self.y = y
         self.yaw = yaw
         self.v = v
-        self.predelta = None
 
 def angle_mod(x, zero_2_2pi=False, degree=False):
-    """Utility for normalizing angles."""
     x = np.asarray(x).flatten()
     if degree:
         x = np.deg2rad(x)
     if zero_2_2pi:
-        mod_angle = x % (2 * np.pi)
+        mod_angle = x % (2*math.pi)
     else:
-        mod_angle = (x + np.pi) % (2 * np.pi) - np.pi
+        mod_angle = (x+math.pi) % (2*math.pi) - math.pi
     if degree:
         mod_angle = np.rad2deg(mod_angle)
-    return mod_angle
+    return mod_angle    
+
+
+def plot_truck(ax, state):
+    """Plot a rectangle of size LENGTH x WIDTH at (state.x, state.y, yaw)."""
+    cx, cy, yaw = state.x, state.y, state.yaw
+
+    # corners in local coordinates:  +x forward, +y left (for example)
+    corners_local = np.array([
+        [+LENGTH/2, +WIDTH/2],
+        [+LENGTH/2, -WIDTH/2],
+        [-LENGTH/2, -WIDTH/2],
+        [-LENGTH/2, +WIDTH/2],
+    ])
+    # rotation
+    R = np.array([
+        [math.cos(yaw), -math.sin(yaw)],
+        [math.sin(yaw),  math.cos(yaw)]
+    ])
+    corners_world = (R @ corners_local.T).T + np.array([cx, cy])
+
+    # close the rectangle
+    corners_world = np.vstack([corners_world, corners_world[0,:]])
+
+    ax.plot(corners_world[:,0], corners_world[:,1], 'k-', linewidth=2)
 
 
 ###############################################################################
@@ -208,9 +225,8 @@ def get_switch_back_course(dl):
     cx, cy, cyaw, ck, s = calc_spline_course(ax, ay, ds=dl)
     return cx, cy, cyaw, ck
 
-
 ###############################################################################
-# 4) VEHICLE DYNAMICS & LINEARIZATION
+# MODEL, OBSTACLE ETC.
 ###############################################################################
 
 def get_linear_model_matrix(v, phi, delta):
@@ -241,12 +257,7 @@ def get_linear_model_matrix(v, phi, delta):
 
     return A, B, C
 
-
-###############################################################################
-# 5) OBSTACLE LINEARIZATION
-###############################################################################
-
-def build_obstacle_linear_terms(xbar, obstacles):
+def build_obstacle_linear_terms(xbar, all_obstacles):
     """
     For each time step k in {0,...,T-1}, build an array of shape [num_obstacles, 3]
     describing the half-plane constraint:
@@ -272,7 +283,7 @@ def build_obstacle_linear_terms(xbar, obstacles):
         robot_y = xbar[1, k]
 
         terms_k = []
-        for (obs_x, obs_y, obs_r) in obstacles:
+        for (obs_x, obs_y, obs_r) in all_obstacles:
             # 1) Combined obstacle radius
             r_total = obs_r + ROBOT_RADIUS
 
@@ -304,89 +315,67 @@ def build_obstacle_linear_terms(xbar, obstacles):
     return obstacle_linear_terms
 
 def linear_mpc_control_with_obstacles(xref, xbar, x0, dref, obstacle_linear_terms):
-    """
-    Solve the MPC problem with added linear constraints for each obstacle/time-step:
-      n^T x(t) <= b
-    
-    The arrays obstacle_linear_terms[t][i] = [nx_i, ny_i, b_i]
-    for obstacle i at time t.
-    """
-    x = cvxpy.Variable((NX, T + 1))
+    x = cvxpy.Variable((NX, T+1))
     u = cvxpy.Variable((NU, T))
 
     cost = 0.0
     constraints = []
 
     for t in range(T):
-        # Input cost
+        # Cost function control effort 
         cost += cvxpy.quad_form(u[:, t], R)
-
-        # State tracking cost
+        # Reference tracking, deviation from states
         if t != 0:
-            cost += cvxpy.quad_form(xref[:, t] - x[:, t], Q)
+            cost += cvxpy.quad_form(xref[:, t] - x[:, t], Q) 
 
-        # System dynamics
-        A, B, C = get_linear_model_matrix(xbar[2, t], xbar[3, t], dref[0, t])
-        constraints += [x[:, t+1] == A @ x[:, t] + B @ u[:, t] + C]
+        # Dynamic constraints
+        A, B, C = get_linear_model_matrix(xbar[2,t], xbar[3,t], dref[0,t])
+        constraints += [x[:, t+1] == A@x[:, t] + B@u[:, t] + C]
 
-        # Input rate cost/constraint
-        if t < (T - 1):
-            cost += cvxpy.quad_form(u[:, t+1] - u[:, t], Rd)
-            constraints += [cvxpy.abs(u[1, t+1] - u[1, t]) <= MAX_DSTEER * DT]
-
-        # Obstacle constraints at time t:
-        # for each obstacle i, we have n_x*x(0,t) + n_y*x(1,t) <= b
-        obs_terms = obstacle_linear_terms[t]  # shape [num_obstacles, 3]
-        for i_obs in range(obs_terms.shape[0]):
-            nx_ = obs_terms[i_obs, 0]
-            ny_ = obs_terms[i_obs, 1]
-            b_  = obs_terms[i_obs, 2]
-            # n^T (x(t), y(t)) <= b
-            constraints += [
-                nx_ * x[0, t] + ny_ * x[1, t] <= b_
-            ]
-        DISTANCE_WEIGHT = 0.1  # Tune as needed
-
-        # 1) "Distance" penalty:  (only up to T-1)
-        if t < T - 1:
+        if t < T-1:
+            cost += cvxpy.quad_form(u[:, t+1]-u[:, t], Rd)  # Penalizing deviation control input
+            constraints += [cvxpy.abs(u[1, t+1] - u[1, t]) <= MAX_DSTEER*DT]   # Constrain
+            # Distance optimization cost
             cost += DISTANCE_WEIGHT * (
                 (x[0, t+1] - x[0, t])**2 +
                 (x[1, t+1] - x[1, t])**2
             )
-
-    # Final state cost
+        obs_terms = obstacle_linear_terms[t]
+        for i_obs in range(obs_terms.shape[0]):
+            nx_ = obs_terms[i_obs, 0]
+            ny_ = obs_terms[i_obs, 1]
+            b_ = obs_terms[i_obs, 2]
+            constraints += [nx_*x[0,t] + ny_*x[1,t] <= b_]
+  
     cost += cvxpy.quad_form(xref[:, T] - x[:, T], Qf)
+    constraints += [x[:,0] == x0]
+    constraints += [x[2,:] <= MAX_SPEED]
+    constraints += [x[2,:] >= MIN_SPEED]
+    constraints += [cvxpy.abs(u[0,:]) <= MAX_ACCEL]
+    constraints += [cvxpy.abs(u[1,:]) <= MAX_STEER]
 
-    # Initial condition
-    constraints += [x[:, 0] == x0]
-
-    # Bounds on speed, steering, acceleration
-    constraints += [x[2, :] <= MAX_SPEED]
-    constraints += [x[2, :] >= MIN_SPEED]
-    constraints += [cvxpy.abs(u[0, :]) <= MAX_ACCEL]
-    constraints += [cvxpy.abs(u[1, :]) <= MAX_STEER]
-
-    # Solve
     prob = cvxpy.Problem(cvxpy.Minimize(cost), constraints)
-    prob.solve(solver=cvxpy.OSQP, verbose=False)
+    # prob.solve(solver=cvxpy.OSQP, verbose=True)
+    prob.solve(
+    solver=cvxpy.OSQP,
+    verbose=True,
+    max_iter=20000,
+    eps_abs=1e-3,
+    eps_rel=1e-3
+)
 
     if prob.status in [cvxpy.OPTIMAL, cvxpy.OPTIMAL_INACCURATE]:
-        ox = np.array(x.value[0, :]).flatten()
-        oy = np.array(x.value[1, :]).flatten()
-        ov = np.array(x.value[2, :]).flatten()
-        oyaw = np.array(x.value[3, :]).flatten()
-        oa = np.array(u.value[0, :]).flatten()
-        odelta = np.array(u.value[1, :]).flatten()
+        ox = np.array(x.value[0,:]).flatten()
+        oy = np.array(x.value[1,:]).flatten()
+        ov = np.array(x.value[2,:]).flatten()
+        oyaw = np.array(x.value[3,:]).flatten()
+        oa = np.array(u.value[0,:]).flatten()
+        odelta = np.array(u.value[1,:]).flatten()
     else:
-        print("MPC: Cannot solve problem with obstacles.")
+        print("MPC could not solve with single obstacle.")
         ox, oy, ov, oyaw, oa, odelta = None, None, None, None, None, None
 
     return oa, odelta, ox, oy, oyaw, ov
-
-
-###############################################################################
-# 6) RECEDING-HORIZON / REAL-TIME ITERATION
-###############################################################################
 
 def update_state(state, a, delta):
     """Kinematic bicycle update."""
@@ -407,12 +396,12 @@ def update_state(state, a, delta):
 
     return state
 
+
 def check_goal(state, goal):
     dx = state.x - goal[0]
     dy = state.y - goal[1]
     d = math.hypot(dx, dy)
     return d <= GOAL_DIS
-
 
 def calc_ref_trajectory(state, cx, cy, cyaw, ck, sp, dl):
     """
@@ -450,7 +439,6 @@ def calc_ref_trajectory(state, cx, cy, cyaw, ck, sp, dl):
 
     return xref, ind, dref
 
-
 def shift_mpc_solution(ox, oy, ov, oyaw, oa, odelta):
     """
     Shift the solution forward by 1 step (receding horizon).
@@ -470,121 +458,105 @@ def shift_mpc_solution(ox, oy, ov, oyaw, oa, odelta):
     xbar = np.vstack([oxn, oyn, ovn, oyawn])
     return xbar, oan, odeltan
 
-
-def do_simulation_with_obstacle(cx, cy, cyaw, ck, sp, dl, initial_state, obstacles):
+def do_simulation_with_obstacle(cx, cy, cyaw, ck, sp, dl, initial_state):
+    """
+    We ignore obstacles_for_display for constraints,
+    but we still show them as "blue circles" on the plot for environment context.
+    We DO impose constraints only for the single red obstacle at (2,0).
+    """
     goal = [cx[-1], cy[-1]]
     state = initial_state
 
     time_ = 0.0
+    traj_x, traj_y = [state.x], [state.y]
+    traj_yaw, traj_v = [state.yaw], [state.v]
 
-    # For logging
-    traj_x = [state.x]
-    traj_y = [state.y]
-    traj_yaw = [state.yaw]
-    traj_v = [state.v]
-
-    # Initialize a default guess for xbar
-    # We'll just replicate the current state for T+1 steps
+    # xbar guess
     xbar = np.tile(np.array([state.x, state.y, state.v, state.yaw]).reshape(-1,1), (1,T+1))
+    # xbar = np.copy(xref)
 
-    # Receding horizon loop
+
+
     while time_ <= MAX_TIME:
-        # 1) Build a reference trajectory for T steps
         xref, ind, dref = calc_ref_trajectory(state, cx, cy, cyaw, ck, sp, dl)
-
         x0 = np.array([state.x, state.y, state.v, state.yaw])
 
-        # 2) Build obstacle linear constraints from the current xbar guess
-        obstacle_linear_terms = build_obstacle_linear_terms(xbar, obstacles)
+        # Build obstacle constraint
+        single_obstacle_terms = build_obstacle_linear_terms(xbar, obstacles)
 
-        # 3) Solve the MPC with these constraints
-        oa, odelta, ox, oy, ov, oyaw_ = linear_mpc_control_with_obstacles(
-            xref, xbar, x0, dref, obstacle_linear_terms
+        oa, odelta, ox, oy, oyaw_, ov_ = linear_mpc_control_with_obstacles(
+            xref, xbar, x0, dref, single_obstacle_terms
         )
-
-        if oa is None or odelta is None:
-            # No feasible solution
-            print("No feasible solution found at time:", time_)
+        if oa is None:
+            print("No feasible solution at time=", time_)
             break
 
-        # 4) Apply the first control
+        # Apply first control
         a_cmd = oa[0]
         delta_cmd = odelta[0]
         state = update_state(state, a_cmd, delta_cmd)
 
-        # 5) Shift horizon for next iteration
-        #    We'll treat the solved state trajectory as new xbar
-        xbar_new = np.vstack([ox, oy, ov, oyaw_])
+        # Shift horizon
+        xbar_new = np.vstack([ox, oy, ov_, oyaw_])
         xbar_shifted, oa_shifted, odelta_shifted = shift_mpc_solution(
-            ox, oy, ov, oyaw_, oa, odelta
+            ox, oy, ov_, oyaw_, oa, odelta
         )
-
-        # Update xbar for next time
         xbar = xbar_shifted
 
-        # Log data
         time_ += DT
         traj_x.append(state.x)
         traj_y.append(state.y)
         traj_yaw.append(state.yaw)
         traj_v.append(state.v)
-
-        # Check goal
         if check_goal(state, goal):
             print("Goal Reached at time:", time_)
             break
 
-        # Plot
         if show_animation:
             plt.cla()
-            plt.plot(cx, cy, "-r", label="Course")
-            # Obstacles
-            for obs in obstacles:
-                circle = plt.Circle((obs[0], obs[1]), obs[2], color='b', alpha=0.5)
-                plt.gca().add_artist(circle)
-            plt.plot(traj_x, traj_y, "-g", label="MPC Path")
-            plt.scatter([state.x], [state.y], color='green', s=50, marker='o')
-            plt.axis("equal")
-            plt.pause(0.001)
+            plt.plot(cx, cy, '-r', label='Course')
 
+            # Plot the original environment obstacles in blue (no constraints)
+            for obs in obstacles_for_display:
+                circle = plt.Circle((obs[0], obs[1]), obs[2], color='b', alpha=0.3)
+                plt.gca().add_artist(circle)
+
+            plt.plot(traj_x, traj_y, '-g', label='MPC Path')
+            plt.scatter([state.x], [state.y], color='green', s=50, marker='o')
+
+            # Plot the rectangle truck
+            plot_truck(plt.gca(), state)
+            plt.axis('equal')
+            plt.pause(0.001)
     return traj_x, traj_y, traj_yaw, traj_v
 
-
-###############################################################################
-# 7) MAIN ENTRY POINT
-###############################################################################
 
 def main():
     dl = 0.1
     cx, cy, cyaw, ck = get_switch_back_course(dl)
     print(f"Course generated: {len(cx)} points")
 
-    # Speed profile: constant target speed
-    sp = [TARGET_SPEED] * len(cx)
-
-    # Initial state
+    sp = [TARGET_SPEED]*len(cx)
     initial_state = State(x=cx[0], y=cy[0], yaw=cyaw[1], v=0.0)
 
-    obstacles = obstacles_array
+    # Convert obstacles_for_display to a list of tuples for constraints
+    global obstacles
+    obstacles = [(o[0], o[1], o[2]) for o in obstacles_for_display]
 
-    # RUN THE SIM
-    x, y, yaw, v = do_simulation_with_obstacle(
-        cx, cy, cyaw, ck, sp, dl, initial_state, obstacles
-    )
+    x, y, yaw_, v_ = do_simulation_with_obstacle(cx, cy, cyaw, ck, sp, dl, initial_state)
 
-    # Final plot
     if show_animation:
         plt.figure()
-        plt.plot(cx, cy, "-r", label="Course")
-        for obs in obstacles:
-            circle = plt.Circle((obs[0], obs[1]), obs[2], color='b', alpha=0.5)
+        plt.plot(cx, cy, '-r', label='Course')
+        # show environment obstacles
+        for obs in obstacles_for_display:
+            circle = plt.Circle((obs[0], obs[1]), obs[2], color='b', alpha=0.3)
             plt.gca().add_artist(circle)
-        plt.plot(x, y, "-g", label="Path")
-        plt.axis("equal")
+        plt.plot(x, y, '-g', label='MPC Path')
+        plt.axis('equal')
         plt.legend()
-        plt.title("MPC with Linearized Obstacles")
+        plt.title("MPC with Obstacle Avoidance")
         plt.show()
-
 
 if __name__ == "__main__":
     main()

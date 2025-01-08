@@ -6,26 +6,31 @@ import numpy as np
 from scipy.spatial.transform import Rotation as Rot
 import os
 import pandas as pd
+import random
+
 
 # Import path
 script_dir = os.path.dirname(os.path.abspath(__file__))
-csv_path = os.path.join(script_dir, "..", "Gijs_code", "best_path.csv")
-best_path_array = pd.read_csv(csv_path)
+path_path = os.path.join(script_dir, "..", "Gijs_code", "best_path.csv")
+best_path_array = pd.read_csv(path_path)
 best_path_array = np.array(best_path_array)
-print(best_path_array[:, 0])
+#Import obstacles
+obstacles_path = os.path.join(script_dir, "..", "Gijs_code", "obstacles.csv")
+obstacles_array = pd.read_csv(obstacles_path)
+# obstacles_array = np.array(obstacles_array)
 
 # Constants and parameters
 NX = 4  # x = x, y, v, yaw
 NU = 2  # a = [accel, steer]
-T = 5  # horizon length
+T = 15  # horizon length
 
 # MPC parameters
 R = np.diag([0.01, 0.01])  # input cost matrix
 Rd = np.diag([0.01, 1.0])  # input difference cost matrix
 Q = np.diag([1.0, 1.0, 0.5, 0.5])  # state cost matrix
 Qf = Q  # state final matrix
-GOAL_DIS = 1.5  # goal distance
-STOP_SPEED = 0.5 / 3.6  # stop speed
+GOAL_DIS = 0.2  # goal distance
+STOP_SPEED = 0 / 3.6  # stop speed
 MAX_TIME = 500.0  # max simulation time
 
 # Iterative parameter
@@ -35,21 +40,21 @@ DU_TH = 0.1  # iteration finish param
 TARGET_SPEED = 10.0 / 3.6  # [m/s] target speed
 N_IND_SEARCH = 10  # Search index number
 
-DT = 0.2  # [s] time tick
+DT = 0.03  # [s] time tick
 
 # Vehicle parameters
-LENGTH = 4.5  # [m]
-WIDTH = 2.0  # [m]
+LENGTH = 1  # [m]
+WIDTH = 0.5  # [m]
 BACKTOWHEEL = 1.0  # [m]
 WHEEL_LEN = 0.3  # [m]
 WHEEL_WIDTH = 0.2  # [m]
 TREAD = 0.7  # [m]
-WB = 2.5  # [m]
+WB = 0.78  # [m]
 
-MAX_STEER = np.deg2rad(45.0)  # maximum steering angle [rad]
-MAX_DSTEER = np.deg2rad(30.0)  # maximum steering speed [rad/s]
-MAX_SPEED = 55.0 / 3.6  # maximum speed [m/s]
-MIN_SPEED = -20.0 / 3.6  # minimum speed [m/s]
+MAX_STEER = np.deg2rad(60.0)  # maximum steering angle [rad]
+MAX_DSTEER = np.deg2rad(180.0)  # maximum steering speed [rad/s]
+MAX_SPEED = 5.0 / 3.6  # maximum speed [m/s]
+MIN_SPEED = -5.0 / 3.6  # minimum speed [m/s]
 MAX_ACCEL = 1.0  # maximum accel [m/ss]
 
 show_animation = True
@@ -254,7 +259,7 @@ def check_goal(state, goal):
     dx = state.x - goal[0]
     dy = state.y - goal[1]
     d = math.hypot(dx, dy)
-    return d <= GOAL_DIS and abs(state.v) <= STOP_SPEED
+    return d <= GOAL_DIS #and abs(state.v) <= STOP_SPEED
 
 
 def calc_ref_trajectory_with_obstacle(state, cx, cy, cyaw, ck, sp, dl, obstacles):
@@ -299,6 +304,21 @@ def calc_ref_trajectory_with_obstacle(state, cx, cy, cyaw, ck, sp, dl, obstacles
     return xref, ind, dref
 
 
+def add_random_obstacles(cx, cy, num_obstacles=2):
+    obstacles = []
+    for _ in range(num_obstacles):
+
+        index = random.randint(8, len(cx) - 8)
+        x_pos = cx[index]
+        y_pos = cy[index]
+        
+        obstacles.append((x_pos, y_pos, 0.5))  
+
+    return obstacles
+
+
+
+
 def do_simulation_with_obstacle(cx, cy, cyaw, ck, sp, dl, initial_state, obstacles):
     goal = [cx[-1], cy[-1]]
     state = initial_state
@@ -324,6 +344,7 @@ def do_simulation_with_obstacle(cx, cy, cyaw, ck, sp, dl, initial_state, obstacl
 
         if check_goal(state, goal):
             print("Goal Reached")
+            state.v = STOP_SPEED
             break
 
         if show_animation:
@@ -340,17 +361,27 @@ def do_simulation_with_obstacle(cx, cy, cyaw, ck, sp, dl, initial_state, obstacl
 
 
 def main():
-    dl = 1.0
+    dl = 0.1
     cx, cy, cyaw, ck = get_switch_back_course(dl)
     print(f"Course generated: {len(cx)} points")
 
     sp = [TARGET_SPEED] * len(cx)
-    initial_state = State(x=cx[0], y=cy[0], yaw=cyaw[0], v=0.0)
+    initial_state = State(x=cx[0], y=cy[0], yaw=cyaw[1], v=0.0)
 
     # Obstakels toevoegen (x, y, radius)
-    obstacles = [
-        (15.0, 10.0, 3.0),  # Obstacle at (15, 10) with radius 3
-    ]
+    obstacles = np.array([
+        [15.0, 10.0, 3.0],  # Obstacle at (15, 10) with radius 3
+    ])
+
+    # np.append(obstacles, obstacles_array, axis=0)
+    # obstacles.append(obstacles_array)
+
+    random_obstacles = add_random_obstacles(cx, cy)
+    obstacles = np.concatenate([obstacles, obstacles_array, random_obstacles], axis=0)
+
+    # np.append(obstacles, random_obstacles, axis=0)
+
+    # obstacles.append(random_obstacles)
 
     x, y, yaw, v = do_simulation_with_obstacle(cx, cy, cyaw, ck, sp, dl, initial_state, obstacles)
 

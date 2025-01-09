@@ -29,8 +29,8 @@ T = 75
 DT = 0.05
 
 # MPC weighting matrices
-R = np.diag([0.1, 0.1])         # Control input cost
-Rd = np.diag([0.01, 1.0])         # Control input difference cost
+R = np.diag([0.1, 0.001])         # Control input cost
+Rd = np.diag([0.01, 0.1])         # Control input difference cost
 Q = np.diag([1e-5, 1e-5, 0.1, 0.1])  # State deviation cost
 Qf = 10 * Q                       # Final state deviation cost
 

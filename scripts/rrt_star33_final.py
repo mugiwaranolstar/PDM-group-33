@@ -407,7 +407,7 @@ def visualize_path(path, obstacles, start, goal, nodes, total_distance=0.0, stee
     plt.xlabel("X")
     plt.ylabel("Y")
     plt.legend()
-    plt.show(block=False)
+    plt.show()
     exit()
 
 if __name__ == "__main__":
@@ -441,8 +441,8 @@ if __name__ == "__main__":
         
         print("Steering input:", steering_input)
         print("Total path distance:", total_distance)
-        np.savetxt("../csv_files/best_path.csv", path, delimiter=",")
-        np.savetxt("../csv_files/obstacles.csv", obstacles, delimiter=",")
+        np.savetxt("../csv_files/best_path.csv", path, delimiter=",", header="x,y,z")
+        np.savetxt("../csv_files/obstacles.csv", obstacles, delimiter=",", header="x,y,z")
 
         # Move the vehicle along the path (optional)
         move_fire_truck_along_path(path, fire_truck)

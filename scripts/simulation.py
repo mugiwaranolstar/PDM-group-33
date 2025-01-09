@@ -13,7 +13,7 @@ GOAL_THRESHOLD = 0.5
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Import path
-mpc_path = os.path.join(script_dir, "..", "csv_files", "mpc_path.csv")
+mpc_path = os.path.join(script_dir, "..", "csv_files", "MPC_path.csv")
 df = pd.read_csv(mpc_path)
 columns = ["x", "y", "yaw", "v"]
 path = df[columns].to_numpy()

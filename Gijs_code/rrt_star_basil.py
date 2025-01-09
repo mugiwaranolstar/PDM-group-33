@@ -335,22 +335,26 @@ def rrt_star(start, goal, obstacles):
 # Calculate the Steering Input
 # --------------------------
 def calculate_steering_input(path):
-    total_steering_input = 0.0
-    for i in range(1, len(path)):
-        # Calculate steering angle between successive nodes in the path
-        dx = path[i][0] - path[i-1][0]
-        dy = path[i][1] - path[i-1][1]
-        direction_angle = np.arctan2(dy, dx)
+    steering_input = 0
+    for i in range(1, len(path) - 1):
+        node1 = path[i - 1]
+        node2 = path[i]
+        node3 = path[i + 1]
         
-        # Angle difference
-        angle_diff = direction_angle - path[i-1][2]
-        angle_diff = (angle_diff + np.pi) % (2 * np.pi) - np.pi  # Normalize to [-pi, pi]
+        v1 = np.array([node2[0] - node1[0], node2[1] - node1[1]])  # Vector from node1 to node2
+        v2 = np.array([node3[0] - node2[0], node3[1] - node2[1]])  # Vector from node2 to node3
         
-        # Add the absolute value of the steering angle to total input
-        total_steering_input += abs(angle_diff)
-
-    print("Steering input:", total_steering_input)
-    return total_steering_input
+        dot_product = np.dot(v1, v2)
+        magnitude_v1 = np.linalg.norm(v1)
+        magnitude_v2 = np.linalg.norm(v2)
+        
+        cos_theta = dot_product / (magnitude_v1 * magnitude_v2)
+                
+        angle = np.arccos(cos_theta)
+        
+        steering_input += angle
+    
+    return steering_input
 
 
 # --------------------------
@@ -384,7 +388,7 @@ def visualize_path(path, obstacles, start, goal, nodes):
         plt.gca().add_patch(square)
     for node_x, node_y, _ in nodes:
         plt.scatter(node_x, node_y, c='orange', s=15, marker="o")
-    plt.scatter(node_x, node_y, c='orange', s=15, label="Node", marker="o")
+    plt.scatter(node_x, node_y, c='orange', s=15, label="Nodes", marker="o")
 
     if path:
         path_x = [state[0] for state in path]

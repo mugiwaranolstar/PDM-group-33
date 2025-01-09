@@ -532,7 +532,8 @@ def calc_ref_trajectory(state, cx, cy, cyaw, ck, sp, dl):
 
 def shift_mpc_solution(ox, oy, ov, oyaw, oa, odelta):
     """
-    Shift the MPC solution forward by 1 step for the next iteration.
+    Enabel the receiding horizon by shifting the MPC solution 
+    forward by 1 step for the next iteration.
     """
     oxn = np.concatenate([ox[1:], [ox[-1]]], axis=0)
     oyn = np.concatenate([oy[1:], [oy[-1]]], axis=0)
@@ -542,6 +543,7 @@ def shift_mpc_solution(ox, oy, ov, oyaw, oa, odelta):
     oan = np.concatenate([oa[1:], [oa[-1]]], axis=0)
     odeltan = np.concatenate([odelta[1:], [odelta[-1]]], axis=0)
 
+    # Build the new initial guess for the next iteration
     xbar = np.vstack([oxn, oyn, ovn, oyawn])
     return xbar, oan, odeltan
 

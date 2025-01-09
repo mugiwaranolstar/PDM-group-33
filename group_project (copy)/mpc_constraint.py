@@ -302,9 +302,9 @@ def get_switch_back_course(dl):
 # 4) MPC OBSTACLE HANDLING
 ###############################################################################
 
-def get_linear_model_matrix(v, phi, delta):
+def get_linear_model_matrix(v, theta, phi):
     """
-    Build linearized system matrices A, B, and offset C around (v, phi, delta).
+    Build linearized system matrices A, B, and offset C around (v, theta, phi).
     """
     A = np.zeros((NX, NX))
     A[0,0] = 1.0
@@ -312,20 +312,20 @@ def get_linear_model_matrix(v, phi, delta):
     A[2,2] = 1.0
     A[3,3] = 1.0
 
-    A[0,2] = DT * math.cos(phi)
-    A[0,3] = -DT * v * math.sin(phi)
-    A[1,2] = DT * math.sin(phi)
-    A[1,3] = DT * v * math.cos(phi)
-    A[3,2] = DT * math.tan(delta) / WB
+    A[0,2] = DT * math.cos(theta)
+    A[0,3] = -DT * v * math.sin(theta)
+    A[1,2] = DT * math.sin(theta)
+    A[1,3] = DT * v * math.cos(theta)
+    A[3,2] = DT * math.tan(phi) / WB
 
     B = np.zeros((NX, NU))
     B[2,0] = DT
-    B[3,1] = DT * v / (WB * (math.cos(delta)**2))
+    B[3,1] = DT * v / (WB * (math.cos(phi)**2))
 
     C = np.zeros(NX)
-    C[0] = DT * v * math.sin(phi) * phi
-    C[1] = -DT * v * math.cos(phi) * phi
-    C[3] = v * delta / (WB * (math.cos(delta)**2))
+    C[0] = DT * v * math.sin(theta) * theta
+    C[1] = -DT * v * math.cos(theta) * theta
+    C[3] = v * phi / (WB * (math.cos(phi)**2))
 
     return A, B, C
 
@@ -458,25 +458,25 @@ def linear_mpc_control_with_obstacles(xref, xbar, x0, dref, obstacle_linear_term
         ov = np.array(x.value[2, :]).flatten()
         oyaw = np.array(x.value[3, :]).flatten()
         oa = np.array(u.value[0, :]).flatten()
-        odelta = np.array(u.value[1, :]).flatten()
+        ophi = np.array(u.value[1, :]).flatten()
     else:
         print("MPC could not solve with full obstacles.")
-        ox, oy, ov, oyaw, oa, odelta = None, None, None, None, None, None
+        ox, oy, ov, oyaw, oa, ophi = None, None, None, None, None, None
 
-    return oa, odelta, ox, oy, oyaw, ov
+    return oa, ophi, ox, oy, oyaw, ov
 
-def update_state(state, a, delta):
+def update_state(state, a, phi):
     """
     Kinematic bicycle update.
     """
-    if delta >= MAX_STEER:
-        delta = MAX_STEER
-    elif delta <= -MAX_STEER:
-        delta = -MAX_STEER
+    if phi >= MAX_STEER:
+        phi = MAX_STEER
+    elif phi <= -MAX_STEER:
+        phi = -MAX_STEER
 
     state.x += state.v * math.cos(state.yaw) * DT
     state.y += state.v * math.sin(state.yaw) * DT
-    state.yaw += state.v / WB * math.tan(delta) * DT
+    state.yaw += state.v / WB * math.tan(phi) * DT
     state.v += a * DT
 
     # saturations
@@ -530,7 +530,7 @@ def calc_ref_trajectory(state, cx, cy, cyaw, ck, sp, dl):
 
     return xref, ind, dref
 
-def shift_mpc_solution(ox, oy, ov, oyaw, oa, odelta):
+def shift_mpc_solution(ox, oy, ov, oyaw, oa, ophi):
     """
     Enable the receiding horizon by shifting the MPC solution 
     forward by 1 step for the next iteration.
@@ -541,11 +541,11 @@ def shift_mpc_solution(ox, oy, ov, oyaw, oa, odelta):
     oyawn = np.concatenate([oyaw[1:], [oyaw[-1]]], axis=0)
 
     oan = np.concatenate([oa[1:], [oa[-1]]], axis=0)
-    odeltan = np.concatenate([odelta[1:], [odelta[-1]]], axis=0)
+    ophin = np.concatenate([ophi[1:], [ophi[-1]]], axis=0)
 
     # Build the new initial guess for the next iteration
     xbar = np.vstack([oxn, oyn, ovn, oyawn])
-    return xbar, oan, odeltan
+    return xbar, oan, ophin
 
 def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
     """
@@ -587,7 +587,7 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
         # Build obstacle constraints for all obstacles
         obstacle_terms = build_obstacle_linear_terms(xbar, obstacles_all)
 
-        oa, odelta, ox, oy, oyaw_, ov_ = linear_mpc_control_with_obstacles(
+        oa, ophi, ox, oy, oyaw_, ov_ = linear_mpc_control_with_obstacles(
             xref, xbar, x0, dref, obstacle_terms
         )
         if oa is None:
@@ -596,16 +596,16 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
 
         # apply first control
         a_cmd = oa[0]
-        delta_cmd = odelta[0]
+        phi_cmd = ophi[0]
 
         mpc_accel_applied.append(a_cmd)
-        mpc_steer_applied.append(delta_cmd)
+        mpc_steer_applied.append(phi_cmd)
 
-        state = update_state(state, a_cmd, delta_cmd)
+        state = update_state(state, a_cmd, phi_cmd)
 
         xbar_new = np.vstack([ox, oy, ov_, oyaw_])
-        xbar_shifted, oa_shifted, odelta_shifted = shift_mpc_solution(
-            ox, oy, ov_, oyaw_, oa, odelta
+        xbar_shifted, oa_shifted, ophi_shifted = shift_mpc_solution(
+            ox, oy, ov_, oyaw_, oa, ophi
         )
         xbar = xbar_shifted
 

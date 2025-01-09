@@ -54,19 +54,19 @@ pip3 install urdfenvs
 This runs the three scripts:
 **rrt_star33_final.py**, **mpc_constraints.py** and **simulation.py** in a row.
 If desired, the three scripts can be run separately:
-To run the global planner:
+1. To run the global planner:
    ```bash
    python3 rrt_star33_final.py
    ```
 
-To run the local planner:
+2. To run the local planner:
    ```bash
    python3 mpc_constraints.py
    ```
 
-To simulate the movement of the robot in the environment:
+3. To simulate the movement of the robot in the environment:
    ```bash
    python3 simulation.py
    ```
 
-Note that the three scripts need to be run in the aforementioned order.
+Note that the three scripts need to be run in the aforementioned order for them to work together.

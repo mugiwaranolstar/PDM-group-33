@@ -123,22 +123,22 @@ def add_node(new_state, nodes, kd_tree):
     kd_tree = cKDTree([node[:2] for node in nodes])
     return kd_tree
 
-def simplify_path(path, obstacles, steps=10):
-    """
-    Simplifies the path by skipping unnecessary waypoints, checking collision-free edges.
-    """
-    simplified_path = [path[0]]  # Start with the first node
-    i = 0
-    while i < len(path) - 1:
-        j = len(path) - 1
-        # We'll try to jump directly from path[i] to path[j].
-        while j > i:
-            if is_edge_collision_free(path[i], path[j], obstacles, steps):
-                simplified_path.append(path[j])
-                i = j
-                break
-            j -= 1
-    return simplified_path
+# def simplify_path(path, obstacles, steps=10):      #can't guarantee that new path will be kinematically feasable
+#     """
+#     Simplifies the path by skipping unnecessary waypoints, checking collision-free edges.
+#     """
+#     simplified_path = [path[0]]  # Start with the first node
+#     i = 0
+#     while i < len(path) - 1:
+#         j = len(path) - 1
+#         # We'll try to jump directly from path[i] to path[j].
+#         while j > i:
+#             if is_edge_collision_free(path[i], path[j], obstacles, steps):
+#                 simplified_path.append(path[j])
+#                 i = j
+#                 break
+#             j -= 1
+#     return simplified_path
 
 def steer_toward(nearest, rand_state, obstacles, max_distance=MAX_CONNECTION_DISTANCE):
     """
@@ -312,16 +312,16 @@ def rrt_star(start, goal, obstacles):
         best_path.reverse()
 
         # Simplify path
-        simplified_path = simplify_path(best_path, obstacles)
-        total_cost = sum(
-            compute_distance(simplified_path[i], simplified_path[i + 1])
-            for i in range(len(simplified_path) - 1)
-        )
-        print(f"Simplified path cost: {total_cost:.2f}")
+        # simplified_path = simplify_path(best_path, obstacles)
+        # total_cost = sum(
+        #     compute_distance(simplified_path[i], simplified_path[i + 1])
+        #     for i in range(len(simplified_path) - 1)
+        # )
+        print(f"Path length: {total_cost:.2f}")
 
         # simplified_path = best_path  # perhaps not simplify
 
-        return simplified_path, nodes
+        return best_path, nodes
     else:
         # No path found
         return None, nodes

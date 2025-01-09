@@ -408,6 +408,7 @@ def visualize_path(path, obstacles, start, goal, nodes, total_distance=0.0, stee
     plt.ylabel("Y")
     plt.legend()
     plt.show()
+    return
 
 if __name__ == "__main__":
     p.connect(p.GUI)

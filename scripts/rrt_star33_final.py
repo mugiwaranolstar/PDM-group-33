@@ -15,7 +15,7 @@ MAX_VELOCITY = 1.2
 DT = 0.1
 
 # RRT Parameters
-MAX_NODES = 1500
+MAX_NODES = 1000
 GOAL_THRESHOLD = 0.5
 MAX_CONNECTION_DISTANCE = 1
 RADIUS = MAX_CONNECTION_DISTANCE * 3
@@ -442,6 +442,7 @@ if __name__ == "__main__":
         print("Steering input:", steering_input)
         print("Total path distance:", total_distance)
         np.savetxt("../csv_files/best_path.csv", path, delimiter=",")
+        np.savetxt("../csv_files/obstacles.csv", obstacles, delimiter=",")
 
         # Move the vehicle along the path (optional)
         move_fire_truck_along_path(path, fire_truck)
@@ -460,4 +461,3 @@ if __name__ == "__main__":
         print("No path found.")
 
     p.disconnect()
-    return

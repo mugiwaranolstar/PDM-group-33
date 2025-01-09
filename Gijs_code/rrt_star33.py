@@ -16,11 +16,11 @@ MAX_VELOCITY = 1.0
 DT = 0.1
 
 # RRT Parameters
-MAX_NODES = 2000
+MAX_NODES = 600
 GOAL_THRESHOLD = 0.5
 MAX_CONNECTION_DISTANCE = 1.0
-RADIUS = MAX_CONNECTION_DISTANCE * 3
-NUM_INITIAL_BRANCHES = 10
+RADIUS = MAX_CONNECTION_DISTANCE * 2
+NUM_INITIAL_BRANCHES = 6
 GOAL_BIAS = 0.0
 ENVIRONMENT_BOUNDS = 7
 
@@ -326,7 +326,7 @@ def rrt_star(start, goal, obstacles):
         total_cost = sum(precompute_distance(simplified_path[i], simplified_path[i + 1])
                          for i in range(len(simplified_path) - 1))
         print(f"Simplified path cost: {total_cost:.2f}")
-        # best_path = simplified_path
+        #best_path = simplified_path
 
     return best_path
 
@@ -416,3 +416,5 @@ if __name__ == "__main__":
         print("No path found.")
 
     p.disconnect()
+
+

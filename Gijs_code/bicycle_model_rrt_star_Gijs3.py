@@ -245,7 +245,8 @@ def visualize_path(path, obstacles, start, goal):
 if __name__ == "__main__":
     # Initialize the PyBullet physics server
     p.connect(p.GUI)  # Connect only once
-    p.setAdditionalSearchPath("/home/basil/PDM/Project/PDM-group-33/urdf")
+    # p.setAdditionalSearchPath("/home/basil/PDM/Project/PDM-group-33/urdf")
+    p.setAdditionalSearchPath("/home/gijs/gym_envs_urdf/PDM_project/PDM-group-33/urdf")
     p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
     p.configureDebugVisualizer(p.COV_ENABLE_MOUSE_PICKING, 1)
     p.configureDebugVisualizer(p.COV_ENABLE_KEYBOARD_SHORTCUTS, 1)

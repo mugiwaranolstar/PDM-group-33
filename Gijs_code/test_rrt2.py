@@ -203,6 +203,7 @@ def rrt_star(start, goal, obstacles):
 
     goal_node = tuple(goal)
 
+
     # -----------------------------
     # Main RRT* Loop
     # -----------------------------

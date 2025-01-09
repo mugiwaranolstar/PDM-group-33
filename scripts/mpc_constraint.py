@@ -42,7 +42,7 @@ STOP_SPEED = 0.0   # m/s
 MAX_TIME = 500.0
 
 # Vehicle constraints
-TARGET_SPEED = 25.0 / 3.6
+TARGET_SPEED = 5.0 / 3.6
 MAX_ITER = 3
 DU_TH = 0.1
 
@@ -52,7 +52,7 @@ WIDTH = 0.5
 WB = 0.9  # Wheelbase
 MAX_STEER = np.deg2rad(45.0)   # Maximum steering angle [rad]
 MAX_DSTEER = np.deg2rad(30.0)  # Maximum steering speed [rad/s]
-MAX_SPEED = 50 / 3.6
+MAX_SPEED = 10 / 3.6
 MIN_SPEED = -20.0 / 3.6
 MAX_ACCEL = 3.0  # m/s^2
 
@@ -718,7 +718,7 @@ def main():
         plt.title("MPC with Full Obstacle Avoidance")
         plt.show()
         
-    return
+    exit()
 
 if __name__ == "__main__":
     main()

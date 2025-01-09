@@ -61,6 +61,7 @@ def move_fire_truck_along_path(path, fire_truck):
         p.resetBaseVelocity(fire_truck, linearVelocity=velocity)
 
         p.stepSimulation()
+    exit()
 
 
 if __name__ == "__main__":
@@ -84,4 +85,4 @@ if __name__ == "__main__":
     move_fire_truck_along_path(path, fire_truck)
 
     p.disconnect()
-    return
+    

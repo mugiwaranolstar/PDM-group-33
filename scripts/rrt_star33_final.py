@@ -15,7 +15,7 @@ MAX_VELOCITY = 1.2
 DT = 0.1
 
 # RRT Parameters
-MAX_NODES = 1000
+MAX_NODES = 1500
 GOAL_THRESHOLD = 0.5
 MAX_CONNECTION_DISTANCE = 1
 RADIUS = MAX_CONNECTION_DISTANCE * 3
@@ -408,7 +408,7 @@ def visualize_path(path, obstacles, start, goal, nodes, total_distance=0.0, stee
     plt.ylabel("Y")
     plt.legend()
     plt.show()
-    return
+    exit()
 
 if __name__ == "__main__":
     p.connect(p.GUI)

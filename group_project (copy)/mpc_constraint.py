@@ -532,7 +532,7 @@ def calc_ref_trajectory(state, cx, cy, cyaw, ck, sp, dl):
 
 def shift_mpc_solution(ox, oy, ov, oyaw, oa, odelta):
     """
-    Enabel the receiding horizon by shifting the MPC solution 
+    Enable the receiding horizon by shifting the MPC solution 
     forward by 1 step for the next iteration.
     """
     oxn = np.concatenate([ox[1:], [ox[-1]]], axis=0)

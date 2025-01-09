@@ -175,7 +175,7 @@ def plot_time_series(time_log, traj_x, traj_y, traj_yaw, traj_v, mpc_accel_appli
     plt.grid(True)
 
     plt.tight_layout()
-    plt.show()
+    plt.show(block=False)
 
 
 ###############################################################################
@@ -716,7 +716,7 @@ def main():
         plt.axis('equal')
         plt.legend()
         plt.title("MPC with Full Obstacle Avoidance")
-        plt.show()
+        plt.show(block=False)
         
     exit()
 

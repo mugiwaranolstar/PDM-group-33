@@ -24,7 +24,7 @@ NUM_INITIAL_BRANCHES = 10
 GOAL_BIAS = 0.0
 ENVIRONMENT_BOUNDS = 7
 
-ROBOT_LENGTH = 1.0
+ROBOT_LENGTH = 1
 ROBOT_WIDTH = 0.5
 
 # --------------------
@@ -108,7 +108,7 @@ def is_collision_free(state, obstacles):
     robot_polygon = Polygon(robot_corners)
     for obs_x, obs_y, _ in obstacles:
         # Create a circular buffer region around each obstacle
-        if robot_polygon.intersects(Point(obs_x, obs_y).buffer(0.5)):
+        if robot_polygon.intersects(Point(obs_x, obs_y).buffer(0.75)):
             return False
     return True
 
@@ -440,6 +440,7 @@ if __name__ == "__main__":
         print("Path found!")
         np.savetxt("best_path.csv", path, delimiter=",")
         # print(path)
+        print("Steering input:", steering_input)
         move_fire_truck_along_path(path, fire_truck)
         visualize_path(path, obstacles, start, goal, nodes)
     else:

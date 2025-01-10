@@ -58,12 +58,12 @@ If desired, the three scripts can be run separately:
    ```bash
    python3 G33_rrt_star.py
    ```
-This command runs the RRT* algirthm to find the global path from start to goal. It then saves all the obstacles in a file named 'obstacles.csv' and the found path in a file named 'G33_rrt_star.csv' in the 'csv_files' directory.
+This command runs the RRT* algirthm to find the global path from start to goal. It then saves all the obstacles in a file named 'obstacles.csv' and the found path in a file named 'G33_rrt_star.csv' in the 'csv_files' directory, overwriting any existing files of the same name.
 2. To run the local planner:
    ```bash
    python3 mpc_constraints.py
    ```
-This runs the MPC algorithm to follow the global path and creates a file of the found local path named 'MPC_path.csv' in the 'csv_files' directory.
+This runs the MPC algorithm to follow the global path and creates a file of the found local path named 'MPC_path.csv' in the 'csv_files' directory, again, overwriting any files of the same name.
 3. To simulate the movement of the robot in the environment:
    ```bash
    python3 simulation.py
@@ -71,3 +71,5 @@ This runs the MPC algorithm to follow the global path and creates a file of the 
 Finally, with this command the MPC algorithm's path is simulated in the pybullet environment while respecting collision and kinematic constraints.
 
    - **Note that the three scripts need to be run in the aforementioned order for them to work together.**
+
+The 'Results_csv' directory contains the csv files of the paths discussed in the report.

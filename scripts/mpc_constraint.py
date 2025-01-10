@@ -674,6 +674,7 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
             plt.scatter([state.x], [state.y], color='green', s=50, marker='o')
             plot_truck(plt.gca(), state)
             plt.axis('equal')
+            plt.legend()
             plt.pause(0.001)
 
     # compute final stats

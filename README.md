@@ -1,7 +1,7 @@
 # PDM-group-33
 
 
-![Robot Animation](media/pyBullet_simulation.gif)
+![Robot Animation](Media/pyBullet_simulation.gif)
 
 # Fire Truck Simulation with Planner Integration 🚒
 

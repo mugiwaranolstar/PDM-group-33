@@ -13,13 +13,20 @@ import random
 ###############################################################################
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-path_path = os.path.join(script_dir, "..", "csv_files", "G33_rrt_star.csv")
+
+
+# (Un)comment the desired path to run the MPC on: either RRT or RRT* path.
+path_path = os.path.join(script_dir, "..", "csv_files", "G33_rrt_star.csv") # RRT* path
+# path_path = os.path.join(script_dir, "..", "csv_files", "vanilla_rrt.csv") # RRT path
+
 
 best_path_array = pd.read_csv(path_path)
 best_path_array = np.array(best_path_array)
 
 # Obstacles from CSV (for visualization and constraints)
-obstacles_path = os.path.join(script_dir, "..", "csv_files", "obstacles.csv")
+# (Un)comment to select either the default obstacles or the version with moved obstacles.
+obstacles_path = os.path.join(script_dir, "..", "csv_files", "one_addition_obstacles.csv") # Default
+# obstacles_path = os.path.join(script_dir, "..", "csv_files", "one_addition_obstacles.csv") # Moved obstacle
 obstacles_for_display = np.array(pd.read_csv(obstacles_path))
 
 # Problem dimensions & horizon
@@ -176,7 +183,36 @@ def plot_time_series(time_log, traj_x, traj_y, traj_yaw, traj_v, mpc_accel_appli
     plt.grid(True)
 
     plt.tight_layout()
-    # plt.show()
+
+def compute_steering_integral(steer_data, dt):
+    """
+    Compute the 'integral' of absolute steering over time:
+       integral = sum(|phi[k]|) * dt
+    Args:
+        steer_data (list or array): steering values in radians at each time step
+        dt (float): time step [s]
+    Returns:
+        float: approximate integral of |steering| over time, in [rad·s]
+    """
+    integral = 0.0
+    for phi in steer_data:
+        integral += abs(phi) * dt
+    return integral
+
+def compute_steering_change(steer_data):
+    """
+    Compute the sum of absolute steering changes:
+       sum_{k=1..N-1} |phi[k] - phi[k-1]|
+    Args:
+        steer_data (list or array): steering values in radians at each time step
+    Returns:
+        float: total absolute steering change in [rad]
+    """
+    total_change = 0.0
+    for i in range(1, len(steer_data)):
+        total_change += abs(steer_data[i] - steer_data[i-1])
+    return total_change
+
 
 def compute_tts(traj_x, traj_y, traj_v, DT):
     """
@@ -584,7 +620,7 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
       - total Euclidean distance traveled
       - sum of absolute accelerations
       - sum of absolute steering inputs
-      - save the states to CSV
+      - save the states to CSV, comment out if not desired
 
     Returns:
       (traj_x, traj_y, traj_yaw, traj_v, time_log, mpc_accel_extended, mpc_steer_extended)
@@ -688,6 +724,12 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
         dy_ = traj_y[i] - traj_y[i - 1]
         total_distance += math.hypot(dx_, dy_)
 
+    steering_integral = compute_steering_integral(mpc_steer_applied, DT)
+    steering_change   = compute_steering_change(mpc_steer_applied)
+
+    print(f"Integral of |steering| over time test 1 = {steering_integral:.3f} rad*s")
+    print(f"Sum of absolute steering changes test 2= {steering_change:.3f} rad")
+
     total_abs_accel = sum(abs(a) for a in mpc_accel_applied)
     total_abs_steer = sum(abs(s) for s in mpc_steer_applied)
 
@@ -720,6 +762,7 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
         mpc_steer_applied
     ])
 
+    # Comment this line if it is undesired to overwrite the CSV file
     np.savetxt(
         "../csv_files/MPC_path.csv",
         data_array,

@@ -1,11 +1,10 @@
 # PDM-group-33
 
-
-![Robot Animation](Media/pyBullet_simulation.gif)
-
 # Fire Truck Simulation with Planner Integration 🚒
 
 This project simulates a simplified fire truck robot in a virtual environment. It combines a custom **URDF model** of the fire truck with a **path-planning algorithm** that enables the robot to navigate through obstacles to reach a target building.
+
+![Robot Animation](Media/pyBullet_simulation.gif)
 
 ---
 

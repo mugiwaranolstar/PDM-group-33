@@ -15,18 +15,18 @@ import random
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 
-# (Un)comment the desired path to run the MPC on: either RRT or RRT* path.
+""" (Un)comment the desired path to run the MPC on: either RRT or RRT* path."""
 path_path = os.path.join(script_dir, "..", "csv_files", "G33_rrt_star.csv") # RRT* path
 # path_path = os.path.join(script_dir, "..", "csv_files", "vanilla_rrt.csv") # RRT path
 
 
-best_path_array = pd.read_csv(path_path)
-best_path_array = np.array(best_path_array)
 
 # Obstacles from CSV (for visualization and constraints)
-# (Un)comment to select either the default obstacles or the version with moved obstacles.
-obstacles_path = os.path.join(script_dir, "..", "csv_files", "one_addition_obstacles.csv") # Default
+"""(Un)comment to select either the default obstacles or the version with moved obstacles."""
+obstacles_path = os.path.join(script_dir, "..", "csv_files", "obstacles.csv") # Default
 # obstacles_path = os.path.join(script_dir, "..", "csv_files", "one_addition_obstacles.csv") # Moved obstacle
+
+best_path_array = np.array(pd.read_csv(path_path))
 obstacles_for_display = np.array(pd.read_csv(obstacles_path))
 
 # Problem dimensions & horizon
@@ -37,10 +37,11 @@ DT = 0.05
 
 # MPC weighting matrices
 R = np.diag([0.1, 0.0001])         # Control input cost
-Rd = np.diag([10.0, 5.0])         # Control input difference cost
+Rd = np.diag([10.0, 5.0])          # Control input difference cost
 Q = np.diag([0.001, 0.001, 1, 1])  # State deviation cost
-Qf = np.diag([1, 1, 0.1, 0.1])                       # Final state deviation cost
-# Qf = Q
+Qf = np.diag([1, 1, 0.1, 0.1])     # Final state deviation cost
+# Additional cost weighting for distance
+DISTANCE_WEIGHT = 100
 
 print(f"Using T={T}, DT={DT}, total horizon = {T*DT}s")
 
@@ -66,10 +67,6 @@ MAX_ACCEL = 2.0  # m/s^2
 
 # Robot bounding circle
 ROBOT_RADIUS = math.hypot(LENGTH / 2, WIDTH / 2)
-
-# Additional cost weighting for distance
-DISTANCE_WEIGHT = 100
-
 
 #If show_animation = True, the the plot is updated in real-time for each MPC iteration.
 #If set to False, the code runs silently without showing intermediate plots.
@@ -184,22 +181,7 @@ def plot_time_series(time_log, traj_x, traj_y, traj_yaw, traj_v, mpc_accel_appli
 
     plt.tight_layout()
 
-def compute_steering_integral(steer_data, dt):
-    """
-    Compute the 'integral' of absolute steering over time:
-       integral = sum(|phi[k]|) * dt
-    Args:
-        steer_data (list or array): steering values in radians at each time step
-        dt (float): time step [s]
-    Returns:
-        float: approximate integral of |steering| over time, in [rad·s]
-    """
-    integral = 0.0
-    for phi in steer_data:
-        integral += abs(phi) * dt
-    return integral
-
-def compute_steering_change(steer_data):
+def compute_sum_steering_deviation(steer_data):
     """
     Compute the sum of absolute steering changes:
        sum_{k=1..N-1} |phi[k] - phi[k-1]|
@@ -212,37 +194,6 @@ def compute_steering_change(steer_data):
     for i in range(1, len(steer_data)):
         total_change += abs(steer_data[i] - steer_data[i-1])
     return total_change
-
-
-def compute_tts(traj_x, traj_y, traj_v, DT):
-    """
-    Compute Total Time Spent (TTS) for a vehicle trajectory.
-    
-    TTS = sum of (distance traveled in each step / velocity at that step)
-
-    Args:
-        traj_x (list): x-coordinates of the trajectory.
-        traj_y (list): y-coordinates of the trajectory.
-        traj_v (list): velocities at each step of the trajectory.
-        DT (float): Time step duration.
-
-    Returns:
-        float: Total Time Spent (TTS).
-    """
-    tts = 0.0  # Initialize total time spent
-    for i in range(1, len(traj_x)):
-        # Calculate the distance traveled in this step
-        dx = traj_x[i] - traj_x[i - 1]
-        dy = traj_y[i] - traj_y[i - 1]
-        delta_s = math.sqrt(dx**2 + dy**2)
-
-        # Velocity at step i (ensure no division by zero)
-        v_i = traj_v[i]
-        if v_i > 0:
-            tts += delta_s / v_i
-
-    return tts
-
 
 ###############################################################################
 # 3) SPLINE FUNCTIONS
@@ -452,7 +403,6 @@ def build_obstacle_linear_terms(xbar, all_obstacles):
         obstacle_linear_terms.append(np.array(terms_k))
 
     return obstacle_linear_terms
-
 
 def linear_mpc_control_with_obstacles(xref, xbar, x0, dref, obstacle_linear_terms):
     """
@@ -718,32 +668,20 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
             plt.pause(0.001)
 
     # compute final stats
-    total_distance = 0.0
+    total_distance = 0 # Initialize
     for i in range(1, len(traj_x)):
         dx_ = traj_x[i] - traj_x[i - 1]
         dy_ = traj_y[i] - traj_y[i - 1]
         total_distance += math.hypot(dx_, dy_)
+        actual_total_distance = total_distance + GOAL_DIS  # Since the simulation stops with a threshold before the goal
 
-    steering_integral = compute_steering_integral(mpc_steer_applied, DT)
-    steering_change   = compute_steering_change(mpc_steer_applied)
-
-    print(f"Integral of |steering| over time test 1 = {steering_integral:.3f} rad*s")
-    print(f"Sum of absolute steering changes test 2= {steering_change:.3f} rad")
-
-    total_abs_accel = sum(abs(a) for a in mpc_accel_applied)
-    total_abs_steer = sum(abs(s) for s in mpc_steer_applied)
-
+    steering_change   = compute_sum_steering_deviation(mpc_steer_applied)
+    print(f"Sum of absolute steering changes = {steering_change:.3f} rad")
     print(f"Final path distance traveled: {total_distance:.3f} m")
-    print(f"Total absolute acceleration used: {total_abs_accel:.3f}")
-    print(f"Total absolute steering used: {total_abs_steer:.3f}")
 
      # Calculate average velocity
     avg_velocity = sum(traj_v) / len(traj_v) if traj_v else 0.0
     print(f"Average velocity: {avg_velocity:.3f} m/s")
-
-    # Total Time Spent (TTS)
-    tts = time_log[-1] if time_log else 0.0
-    print(f"Total time spent (TTS): {tts:.3f} seconds")
 
     # Now we fix the length mismatch by extending the control arrays to match time_log
     if len(mpc_accel_applied) < len(time_log):
@@ -809,17 +747,14 @@ def main():
         # Plot the time series data
         plot_time_series(time_log, x, y, yaw_, v_, accel_log, steer_log)
 
-        plt.show()
-        print("Plot displayed")
-
-    # Compute TTS
-    tts = compute_tts(x, y, v_, DT)
-    print(f"Total Time Spent (TTS): {tts:.2f} seconds")
-
     # End the timer
     end_time = time.time()
-    elapsed_time = time.time() - start_time
+    elapsed_time = end_time - start_time
     print(f"Total elapsed time: {elapsed_time:.2f} seconds")
+    
+    if show_animation:
+        plt.show()
+        print("Plot displayed")
 
 if __name__ == "__main__":
     main()

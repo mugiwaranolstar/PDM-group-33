@@ -70,4 +70,4 @@ This runs the MPC algorithm to follow the global path and creates a file of the 
    ```
 Finally, with this command the MPC algorithm's path is simulated in the pybullet environment while respecting collision and kinematic constraints.
 
-Note that the three scripts need to be run in the aforementioned order for them to work together.
+   - **Note that the three scripts need to be run in the aforementioned order for them to work together.**

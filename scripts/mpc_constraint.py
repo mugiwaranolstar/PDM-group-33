@@ -29,20 +29,21 @@ T = 75
 DT = 0.05
 
 # MPC weighting matrices
-R = np.diag([0.1, 0.001])         # Control input cost
-Rd = np.diag([0.01, 0.1])         # Control input difference cost
-Q = np.diag([1e-5, 1e-5, 0.1, 0.1])  # State deviation cost
-Qf = 10 * Q                       # Final state deviation cost
+R = np.diag([0.1, 0.0001])         # Control input cost
+Rd = np.diag([10.0, 5.0])         # Control input difference cost
+Q = np.diag([0.001, 0.001, 1, 1])  # State deviation cost
+Qf = np.diag([1, 1, 0.1, 0.1])                       # Final state deviation cost
+# Qf = Q
 
 print(f"Using T={T}, DT={DT}, total horizon = {T*DT}s")
 
 # Goal / time parameters
 GOAL_DIS = 0.2
 STOP_SPEED = 0.0   # m/s
-MAX_TIME = 500.0
+MAX_TIME = 600.0
 
 # Vehicle constraints
-TARGET_SPEED = 5.0 / 3.6
+TARGET_SPEED = 5 / 3.6
 MAX_ITER = 3
 DU_TH = 0.1
 
@@ -52,9 +53,9 @@ WIDTH = 0.5
 WB = 0.9  # Wheelbase
 MAX_STEER = np.deg2rad(45.0)   # Maximum steering angle [rad]
 MAX_DSTEER = np.deg2rad(30.0)  # Maximum steering speed [rad/s]
-MAX_SPEED = 10 / 3.6
+MAX_SPEED = 20 / 3.6
 MIN_SPEED = -20.0 / 3.6
-MAX_ACCEL = 3.0  # m/s^2
+MAX_ACCEL = 2.0  # m/s^2
 
 # Robot bounding circle
 ROBOT_RADIUS = math.hypot(LENGTH / 2, WIDTH / 2)
@@ -175,7 +176,36 @@ def plot_time_series(time_log, traj_x, traj_y, traj_yaw, traj_v, mpc_accel_appli
     plt.grid(True)
 
     plt.tight_layout()
-    plt.show()
+    # plt.show()
+
+def compute_tts(traj_x, traj_y, traj_v, DT):
+    """
+    Compute Total Time Spent (TTS) for a vehicle trajectory.
+    
+    TTS = sum of (distance traveled in each step / velocity at that step)
+
+    Args:
+        traj_x (list): x-coordinates of the trajectory.
+        traj_y (list): y-coordinates of the trajectory.
+        traj_v (list): velocities at each step of the trajectory.
+        DT (float): Time step duration.
+
+    Returns:
+        float: Total Time Spent (TTS).
+    """
+    tts = 0.0  # Initialize total time spent
+    for i in range(1, len(traj_x)):
+        # Calculate the distance traveled in this step
+        dx = traj_x[i] - traj_x[i - 1]
+        dy = traj_y[i] - traj_y[i - 1]
+        delta_s = math.sqrt(dx**2 + dy**2)
+
+        # Velocity at step i (ensure no division by zero)
+        v_i = traj_v[i]
+        if v_i > 0:
+            tts += delta_s / v_i
+
+    return tts
 
 
 ###############################################################################
@@ -660,6 +690,14 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
     print(f"Total absolute acceleration used: {total_abs_accel:.3f}")
     print(f"Total absolute steering used: {total_abs_steer:.3f}")
 
+     # Calculate average velocity
+    avg_velocity = sum(traj_v) / len(traj_v) if traj_v else 0.0
+    print(f"Average velocity: {avg_velocity:.3f} m/s")
+
+    # Total Time Spent (TTS)
+    tts = time_log[-1] if time_log else 0.0
+    print(f"Total time spent (TTS): {tts:.3f} seconds")
+
     # Now we fix the length mismatch by extending the control arrays to match time_log
     if len(mpc_accel_applied) < len(time_log):
         mpc_accel_applied.append(0.0)
@@ -690,6 +728,9 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
     return traj_x, traj_y, traj_yaw, traj_v, time_log, mpc_accel_applied, mpc_steer_applied
 
 def main():
+    # Start the timer
+    start_time = time.time()
+
     dl = 0.1
     cx, cy, cyaw, ck = get_switch_back_course(dl)
     print(f"Course generated: {len(cx)} points")
@@ -705,10 +746,10 @@ def main():
         cx, cy, cyaw, ck, sp, dl, initial_state
     )
 
-    # Plot the time series data
-    plot_time_series(time_log, x, y, yaw_, v_, accel_log, steer_log)
+    
 
     if show_animation:
+        print("Plotting final plot")
         plt.figure()
         plt.plot(cx, cy, '-r', label='Course')
         for obs in obstacles_for_display:
@@ -718,7 +759,21 @@ def main():
         plt.axis('equal')
         plt.legend()
         plt.title("MPC with Full Obstacle Avoidance")
+
+        # Plot the time series data
+        plot_time_series(time_log, x, y, yaw_, v_, accel_log, steer_log)
+
         plt.show()
+        print("Plot displayed")
+
+    # Compute TTS
+    tts = compute_tts(x, y, v_, DT)
+    print(f"Total Time Spent (TTS): {tts:.2f} seconds")
+
+    # End the timer
+    end_time = time.time()
+    elapsed_time = time.time() - start_time
+    print(f"Total elapsed time: {elapsed_time:.2f} seconds")
 
 if __name__ == "__main__":
     main()

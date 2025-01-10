@@ -76,3 +76,9 @@ Finally, with this command the MPC algorithm's path is simulated in the pybullet
    - **Note that the three scripts need to be run in the aforementioned order for them to work together.**
 
 The 'Results_csv' directory contains the csv files of the paths discussed in the report.
+
+
+<video autoplay loop muted playsinline>
+    <source src="pyBullet simulation.webm" type="video/webm">
+    Your browser does not support the video tag.
+</video>

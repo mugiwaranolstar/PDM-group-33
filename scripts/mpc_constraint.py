@@ -14,7 +14,6 @@ import random
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
 path_path = os.path.join(script_dir, "..", "csv_files", "G33_rrt_star.csv")
-path_path = os.path.join(script_dir, "..", "Gijs_code", "Final_rrt", "G33_rrt_star.csv")
 
 best_path_array = pd.read_csv(path_path)
 best_path_array = np.array(best_path_array)

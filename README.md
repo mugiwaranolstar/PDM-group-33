@@ -79,6 +79,6 @@ The 'Results_csv' directory contains the csv files of the paths discussed in the
 
 
 <video autoplay loop muted playsinline>
-    <source src="pyBullet simulation.webm" type="video/webm">
+    <source src="media/pyBullet simulation.webm" type="video/webm">
     Your browser does not support the video tag.
 </video>

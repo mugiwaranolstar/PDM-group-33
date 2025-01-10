@@ -1,5 +1,8 @@
 # PDM-group-33
 
+
+![Robot Animation](media/pyBullet_simulation.gif)
+
 # Fire Truck Simulation with Planner Integration 🚒
 
 This project simulates a simplified fire truck robot in a virtual environment. It combines a custom **URDF model** of the fire truck with a **path-planning algorithm** that enables the robot to navigate through obstacles to reach a target building.
@@ -77,8 +80,3 @@ Finally, with this command the MPC algorithm's path is simulated in the pybullet
 
 The 'Results_csv' directory contains the csv files of the paths discussed in the report.
 
-
-<video autoplay loop muted playsinline>
-    <source src="media/pyBullet simulation.webm" type="video/webm">
-    Your browser does not support the video tag.
-</video>

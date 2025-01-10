@@ -390,7 +390,7 @@ def main():
 
         print(f"Total Euclidean Distance: {total_distance:.2f}")
         print(f"Total Steering Sum:       {total_steering:.2f}")
-        np.savetxt("best_path_voorbeeld_rrt.csv", path, delimiter=",")
+        np.savetxt("../csv_files/sushi_rrt.csv", path, delimiter=",", header="x,y,z")
         # final visualization
         rrt.draw_graph()
         plt.plot(

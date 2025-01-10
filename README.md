@@ -30,10 +30,10 @@ This simulation is ideal for testing robotic control systems and planners in a r
 ---
 
 ### Installation
-1. Install the simulation environment:
+1. Install the simulation environment by following the instructions on :
 
 ``` {.sourceCode .bash}
-pip3 install urdfenvs
+https://github.com/maxspahn/gym_envs_urdf/tree/develop
 ```
 
 2. Clone the repository:

@@ -13,7 +13,7 @@ import random
 ###############################################################################
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-path_path = os.path.join(script_dir, "..", "csv_files", "best_path.csv")
+path_path = os.path.join(script_dir, "..", "csv_files", "G33_rrt_star.csv")
 
 best_path_array = pd.read_csv(path_path)
 best_path_array = np.array(best_path_array)
@@ -678,7 +678,7 @@ def do_simulation_with_obstacles(cx, cy, cyaw, ck, sp, dl, initial_state):
     ])
 
     np.savetxt(
-        "MPC_path.csv",
+        "../csv_files/MPC_path.csv",
         data_array,
         delimiter=",",
         header="time,x,y,yaw,v,a,phi",

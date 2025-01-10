@@ -15,7 +15,7 @@ MAX_VELOCITY = 1.2
 DT = 0.1
 
 # RRT Parameters
-MAX_NODES = 1500
+MAX_NODES = 3000
 GOAL_THRESHOLD = 0.5
 MAX_CONNECTION_DISTANCE = 1
 RADIUS = MAX_CONNECTION_DISTANCE * 3
@@ -38,7 +38,8 @@ def create_environment2(goal):
         (5, 1, 0.5), (-5, -5, 0.5), (0, 5, 0.5),
         (0, -4, 0.5), (-4, 0, 0.5), (4, 4, 0.5),
         (-1, -1, 0.5), (0, 2, 0.5), (-1, -5, 0.5),
-        (0, 1, 0.5), (3, -5, 0.5), (2, -1.5, 0.5)
+        (2, -2, 0.5), (0, 1.5, 0.5), (3, -5, 0.5),
+        (2, -1.5, 0.5)
     ]
     for x, y, z in obstacles:
         p.loadURDF("cube.urdf", [x, y, z], globalScaling=1.0)
@@ -122,22 +123,22 @@ def add_node(new_state, nodes, kd_tree):
     kd_tree = cKDTree([node[:2] for node in nodes])
     return kd_tree
 
-def simplify_path(path, obstacles, steps=10):
-    """
-    Simplifies the path by skipping unnecessary waypoints, checking collision-free edges.
-    """
-    simplified_path = [path[0]]  # Start with the first node
-    i = 0
-    while i < len(path) - 1:
-        j = len(path) - 1
-        # We'll try to jump directly from path[i] to path[j].
-        while j > i:
-            if is_edge_collision_free(path[i], path[j], obstacles, steps):
-                simplified_path.append(path[j])
-                i = j
-                break
-            j -= 1
-    return simplified_path
+# def simplify_path(path, obstacles, steps=10):      #can't guarantee that new path will be kinematically feasable
+#     """
+#     Simplifies the path by skipping unnecessary waypoints, checking collision-free edges.
+#     """
+#     simplified_path = [path[0]]  # Start with the first node
+#     i = 0
+#     while i < len(path) - 1:
+#         j = len(path) - 1
+#         # We'll try to jump directly from path[i] to path[j].
+#         while j > i:
+#             if is_edge_collision_free(path[i], path[j], obstacles, steps):
+#                 simplified_path.append(path[j])
+#                 i = j
+#                 break
+#             j -= 1
+#     return simplified_path
 
 def steer_toward(nearest, rand_state, obstacles, max_distance=MAX_CONNECTION_DISTANCE):
     """
@@ -177,7 +178,10 @@ def rrt_star(start, goal, obstacles):
     costs = {tuple(start): 0}
     edge_ids = {}
     best_path = None
-
+    
+    # NEW: Additional list just for plotting (reduced)
+    plot_nodes = [start]
+    
     kd_tree = cKDTree([start[:2]])  # KD-tree for quick nearest-neighbor search
 
     def precompute_distance(node1, node2):
@@ -199,9 +203,10 @@ def rrt_star(start, goal, obstacles):
                 [1, 0, 0],
                 lineWidth=1.0
             )
+            
+            plot_nodes.append(branch_state)
 
     goal_node = tuple(goal)
-
 
     # -----------------------------
     # Main RRT* Loop
@@ -210,7 +215,7 @@ def rrt_star(start, goal, obstacles):
         if i % 100 == 0:
             print(f"[DEBUG] Processing node {i} / {MAX_NODES}")
 
-        # Sample a random state or bias toward the goal
+        # Sample a random state
         rand_state = goal if random.random() < GOAL_BIAS else (
             random.uniform(-ENVIRONMENT_BOUNDS, ENVIRONMENT_BOUNDS),
             random.uniform(-ENVIRONMENT_BOUNDS, ENVIRONMENT_BOUNDS),
@@ -226,9 +231,7 @@ def rrt_star(start, goal, obstacles):
         if not new_states:
             continue
 
-        # ----------------------------------------
-        # Add all intermediate states to the tree
-        # ----------------------------------------
+        # Add all intermediate states internally for the algorithm
         prev_state = nearest
         for sub_state in new_states:
             segment_cost = precompute_distance(prev_state, sub_state)
@@ -247,35 +250,32 @@ def rrt_star(start, goal, obstacles):
 
             prev_state = sub_state
 
-        # -----------------------------
-        # Rewire (Limit the neighbors)
-        # -----------------------------
-        last_new_state = new_states[-1]
-        last_new_cost = costs[tuple(last_new_state)]
-        # Instead of re-wiring all neighbors within RADIUS, 
-        # let's only take up to 10 random neighbors from that set.
-        near_indices = kd_tree.query_ball_point(last_new_state[:2], RADIUS)
-        if len(near_indices) > 10:
-            near_indices = random.sample(near_indices, 10)
+        last_sub_state = new_states[-1]
+        plot_nodes.append(last_sub_state)
 
-        for idx in near_indices:
-            near_node = nodes[idx]
-            if near_node == last_new_state:
-                continue
-            if is_edge_collision_free(last_new_state, near_node, obstacles):
-                potential_cost = last_new_cost + precompute_distance(last_new_state, near_node)
-                if potential_cost < costs[tuple(near_node)]:
-                    # Remove old debug line
-                    if tuple(near_node) in edge_ids:
-                        p.removeUserDebugItem(edge_ids[tuple(near_node)])
-                    parents[tuple(near_node)] = last_new_state
-                    costs[tuple(near_node)] = potential_cost
-                    edge_ids[tuple(near_node)] = p.addUserDebugLine(
-                        [last_new_state[0], last_new_state[1], 0.1],
-                        [near_node[0], near_node[1], 0.1],
-                        [0, 1, 0],
-                        lineWidth=1.0
-                    )
+        # # (Rewire logic stays the same)
+        # last_new_state = new_states[-1]
+        # last_new_cost = costs[tuple(last_new_state)]
+        # near_indices = kd_tree.query_ball_point(last_new_state[:2], RADIUS)
+        # if len(near_indices) > 10:
+        #     near_indices = random.sample(near_indices, 10)
+        # for idx in near_indices:
+        #     near_node = nodes[idx]
+        #     if near_node == last_new_state:
+        #         continue
+        #     if is_edge_collision_free(last_new_state, near_node, obstacles):
+        #         potential_cost = last_new_cost + precompute_distance(last_new_state, near_node)
+        #         if potential_cost < costs[tuple(near_node)]:
+        #             if tuple(near_node) in edge_ids:
+        #                 p.removeUserDebugItem(edge_ids[tuple(near_node)])
+        #             parents[tuple(near_node)] = last_new_state
+        #             costs[tuple(near_node)] = potential_cost
+        #             edge_ids[tuple(near_node)] = p.addUserDebugLine(
+        #                 [last_new_state[0], last_new_state[1], 0.1],
+        #                 [near_node[0], near_node[1], 0.1],
+        #                 [0, 1, 0],
+        #                 lineWidth=1.0
+        #             )
 
     # -----------------------------
     # Attempt to connect to Goal
@@ -310,20 +310,21 @@ def rrt_star(start, goal, obstacles):
             cur = parents.get(tuple(cur))
         best_path.reverse()
 
-        # Simplify path
-        simplified_path = simplify_path(best_path, obstacles)
+        
+        # simplified_path = simplify_path(best_path, obstacles)
+
         total_cost = sum(
-            compute_distance(simplified_path[i], simplified_path[i + 1])
-            for i in range(len(simplified_path) - 1)
+            compute_distance(best_path[i], best_path[i + 1])
+            for i in range(len(best_path) - 1)
         )
-        print(f"Simplified path cost: {total_cost:.2f}")
+
+        print(f"Path length: {total_cost:.2f}")
 
         # simplified_path = best_path  # perhaps not simplify
 
-        return simplified_path, nodes
+        return best_path, nodes, plot_nodes
     else:
-        # No path found
-        return None, nodes
+        return None, nodes, plot_nodes
 
 def calculate_steering_input(path):
     steering_input = 0
@@ -399,7 +400,7 @@ def visualize_path(path, obstacles, start, goal, nodes, total_distance=0.0, stee
     plt.grid(which='both', color='gray', linestyle='--', linewidth=0.5)
 
     # Construct a title that includes performance info
-    title_text = (f"RRT* Path Planning (Bicycle Model)\n"
+    title_text = (f"Plain RRT Path Planning (Bicycle Model)\n"
                   f"Nodes: {len(nodes)}   "
                   f"Distance: {total_distance:.2f}   "
                   f"Steering Sum: {steering_sum:.2f}")
@@ -408,7 +409,6 @@ def visualize_path(path, obstacles, start, goal, nodes, total_distance=0.0, stee
     plt.ylabel("Y")
     plt.legend()
     plt.show()
-    exit()
 
 if __name__ == "__main__":
     p.connect(p.GUI)
@@ -430,7 +430,7 @@ if __name__ == "__main__":
     obstacles = create_environment2(goal)
     print("Goal:", goal)
 
-    path, nodes = rrt_star(start, goal, obstacles)
+    path, all_nodes, plot_nodes = rrt_star(start, goal, obstacles)
     if path:
         print("Path found!")
         # Compute performance measures
@@ -441,8 +441,7 @@ if __name__ == "__main__":
         
         print("Steering input:", steering_input)
         print("Total path distance:", total_distance)
-        np.savetxt("../csv_files/best_path.csv", path, delimiter=",", header="x,y,z")
-        np.savetxt("../csv_files/obstacles.csv", obstacles, delimiter=",", header="x,y,z")
+        np.savetxt("../csv_files/G33_rrt.csv", path, delimiter=",", header="x,y,z")
 
         # Move the vehicle along the path (optional)
         move_fire_truck_along_path(path, fire_truck)
@@ -453,10 +452,11 @@ if __name__ == "__main__":
             obstacles,
             start,
             goal,
-            nodes,
+            plot_nodes,
             total_distance=total_distance,
             steering_sum=steering_input
         )
+
     else:
         print("No path found.")
 

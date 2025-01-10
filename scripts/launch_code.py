@@ -1,6 +1,6 @@
 import subprocess
 
-subprocess.run(["python3", "rrt_star33_final.py"])
+subprocess.run(["python3", "G33_rrt_star.py"])
 
 subprocess.run(["python3", "mpc_constraint.py"])
 

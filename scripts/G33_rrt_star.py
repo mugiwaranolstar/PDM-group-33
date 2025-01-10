@@ -9,27 +9,23 @@ from shapely.geometry import Polygon, Point
 from scipy.spatial import cKDTree
 import os
 
-
 # Constants for the bicycle model
 MAX_STEERING_ANGLE = np.pi / 4
-MAX_VELOCITY = 1.0
+MAX_VELOCITY = 1.2
 DT = 0.1
 
 # RRT Parameters
-MAX_NODES = 900
+MAX_NODES = 1000
 GOAL_THRESHOLD = 0.5
-MAX_CONNECTION_DISTANCE = 1.0
+MAX_CONNECTION_DISTANCE = 1
 RADIUS = MAX_CONNECTION_DISTANCE * 3
-NUM_INITIAL_BRANCHES = 10
+NUM_INITIAL_BRANCHES = 15
 GOAL_BIAS = 0.0
 ENVIRONMENT_BOUNDS = 7
 
 ROBOT_LENGTH = 1
 ROBOT_WIDTH = 0.5
 
-# --------------------
-# Environment Creation
-# --------------------
 def create_environment2(goal):
     """Creates a PyBullet environment with larger obstacles, borders, and a goal marker."""
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
@@ -42,12 +38,12 @@ def create_environment2(goal):
         (5, 1, 0.5), (-5, -5, 0.5), (0, 5, 0.5),
         (0, -4, 0.5), (-4, 0, 0.5), (4, 4, 0.5),
         (-1, -1, 0.5), (0, 2, 0.5), (-1, -5, 0.5),
-        (2, -2, 0.5), (0, 1.5, 0.5), (3, -5, 0.5),
-        (2, -1.5, 0.5)
+        (0, 1, 0.5), (3, -5, 0.5), (2, -1.5, 0.5) # (0, 1.5, 0.5) (2, -2, 0.5), 
     ]
     for x, y, z in obstacles:
         p.loadURDF("cube.urdf", [x, y, z], globalScaling=1.0)
 
+    # Borders
     for x in range(-ENVIRONMENT_BOUNDS, ENVIRONMENT_BOUNDS, 1):
         p.loadURDF("cube.urdf", [x, -ENVIRONMENT_BOUNDS, 0.5], globalScaling=1.0)
         p.loadURDF("cube.urdf", [x, ENVIRONMENT_BOUNDS, 0.5], globalScaling=1.0)
@@ -56,32 +52,28 @@ def create_environment2(goal):
         p.loadURDF("cube.urdf", [-ENVIRONMENT_BOUNDS, y, 0.5], globalScaling=1.0)
         p.loadURDF("cube.urdf", [ENVIRONMENT_BOUNDS, y, 0.5], globalScaling=1.0)
 
-    p.loadURDF("sphere_small.urdf", [goal[0], goal[1], GOAL_THRESHOLD], globalScaling=GOAL_THRESHOLD * 2)
+    # Goal marker
+    p.loadURDF(
+        "sphere_small.urdf",
+        [goal[0], goal[1], GOAL_THRESHOLD],
+        globalScaling=GOAL_THRESHOLD * 2
+    )
     return obstacles
 
-
-# -----------------
-# Distance & Models
-# -----------------
 def compute_distance(node1, node2):
     """Euclidean distance in x-y space."""
     return np.linalg.norm(np.array(node1[:2]) - np.array(node2[:2]))
 
-
 def bicycle_step(state, velocity, steering_angle, dt=DT):
     """Propagates the bicycle model one time step forward."""
     x, y, theta = state
-    # Debugging statement:
-    # print(f"[DEBUG] bicycle_step: Starting from (x={x:.2f}, y={y:.2f}, theta={theta:.2f}), "
-    #       f"velocity={velocity:.2f}, steering_angle={steering_angle:.2f}")
     theta_new = theta + velocity * np.tan(steering_angle) * dt
     x_new = x + velocity * np.cos(theta_new) * dt
     y_new = y + velocity * np.sin(theta_new) * dt
     return x_new, y_new, theta_new
 
-
 def get_robot_corners(state):
-    """Returns the (x, y) positions of the four corners of the robot (in world coords)."""
+    """Returns the (x, y) positions of the corners of the robot (in world coords)."""
     x, y, theta = state
     dx = ROBOT_LENGTH / 2
     dy = ROBOT_WIDTH / 2
@@ -101,17 +93,15 @@ def get_robot_corners(state):
     world_corners = np.dot(local_corners, rotation_matrix.T) + np.array([x, y])
     return world_corners
 
-
 def is_collision_free(state, obstacles):
     """Checks if the robot (modeled as a rectangle) is collision-free at the given state."""
     robot_corners = get_robot_corners(state)
     robot_polygon = Polygon(robot_corners)
     for obs_x, obs_y, _ in obstacles:
         # Create a circular buffer region around each obstacle
-        if robot_polygon.intersects(Point(obs_x, obs_y).buffer(0.75)):
+        if robot_polygon.intersects(Point(obs_x, obs_y).buffer(0.71)):
             return False
     return True
-
 
 def is_edge_collision_free(start, end, obstacles, steps=5):
     """Checks if the straight-line (in state-space) interpolation is collision-free."""
@@ -125,46 +115,39 @@ def is_edge_collision_free(start, end, obstacles, steps=5):
             return False
     return True
 
-
-# -------------------
-# KD-Tree Management
-# -------------------
+from scipy.spatial import cKDTree
 def add_node(new_state, nodes, kd_tree):
     """Adds a node to the node list and rebuilds the KD-tree."""
     nodes.append(new_state)
     kd_tree = cKDTree([node[:2] for node in nodes])
     return kd_tree
 
+# def simplify_path(path, obstacles, steps=10):      #can't guarantee that new path will be kinematically feasable
+#     """
+#     Simplifies the path by skipping unnecessary waypoints, checking collision-free edges.
+#     """
+#     simplified_path = [path[0]]  # Start with the first node
+#     i = 0
+#     while i < len(path) - 1:
+#         j = len(path) - 1
+#         # We'll try to jump directly from path[i] to path[j].
+#         while j > i:
+#             if is_edge_collision_free(path[i], path[j], obstacles, steps):
+#                 simplified_path.append(path[j])
+#                 i = j
+#                 break
+#             j -= 1
+#     return simplified_path
 
-# ---------------------
-# Path Utility Function
-# ---------------------
-def simplify_path(path, obstacles, steps=10):
-    """
-    Simplifies the path by skipping unnecessary waypoints, checking collision-free edges.
-    """
-    simplified_path = [path[0]]  # Start with the first node
-    for i in range(len(path) - 1):
-        for j in range(len(path) - 1, i, -1):
-            if is_edge_collision_free(path[i], path[j], obstacles, steps):
-                simplified_path.append(path[j])
-                break
-    return simplified_path
-
-
-# ------------------------------------------------------------------
-# New function to steer from nearest toward random state (bicycle)
-# ------------------------------------------------------------------
 def steer_toward(nearest, rand_state, obstacles, max_distance=MAX_CONNECTION_DISTANCE):
     """
-    Tries to steer from 'nearest' toward 'rand_state' following bicycle kinematics.
-    We choose a steering angle that points roughly toward rand_state, but clamp it by MAX_STEERING_ANGLE.
-    Then we step forward in small increments until we reach or exceed 'max_distance', or encounter collision.
+    Steer from 'nearest' toward 'rand_state' in small increments. 
+    Generate multiple intermediate states along the path, 
+    returning them so each can be added to the tree.
     """
-
     x_n, y_n, theta_n = nearest
     x_r, y_r, _ = rand_state
-    direction_angle = np.arctan2((y_r - y_n), (x_r - x_n))  # desired heading
+    direction_angle = np.arctan2((y_r - y_n), (x_r - x_n))
     angle_diff = direction_angle - theta_n
 
     # Normalize angle_diff into [-pi, pi]
@@ -172,30 +155,21 @@ def steer_toward(nearest, rand_state, obstacles, max_distance=MAX_CONNECTION_DIS
     # Clamp steering angle
     steering_angle = np.clip(angle_diff, -MAX_STEERING_ANGLE, MAX_STEERING_ANGLE)
 
-    # We'll move in small steps and check collision
     distance_covered = 0.0
-    step_size = 0.2  # smaller step for better collision checking
-    current_state = (x_n, y_n, theta_n)
+    step_size = 0.2
+    current_state = nearest
 
+    new_states = []
     while distance_covered < max_distance:
         next_state = bicycle_step(current_state, MAX_VELOCITY, steering_angle, dt=DT)
-        # Debugging statement:
-        # print(f"[DEBUG] steer_toward: next_state={next_state}, distance_covered={distance_covered:.2f}")
-
         if not is_collision_free(next_state, obstacles):
-            # Debugging statement:
-            # print("[DEBUG] steer_toward: Collision detected, stopping extension.")
-            return None  # collision occurred, return None
-
+            return new_states
+        new_states.append(next_state)
         current_state = next_state
         distance_covered += step_size
 
-    return current_state
+    return new_states
 
-
-# ---------
-# RRT* Core
-# ---------
 def rrt_star(start, goal, obstacles):
     # Data structures
     nodes = [start]
@@ -203,7 +177,10 @@ def rrt_star(start, goal, obstacles):
     costs = {tuple(start): 0}
     edge_ids = {}
     best_path = None
-
+    
+    # NEW: Additional list just for plotting (reduced)
+    plot_nodes = [start]
+    
     kd_tree = cKDTree([start[:2]])  # KD-tree for quick nearest-neighbor search
 
     def precompute_distance(node1, node2):
@@ -225,8 +202,9 @@ def rrt_star(start, goal, obstacles):
                 [1, 0, 0],
                 lineWidth=1.0
             )
+            
+            plot_nodes.append(branch_state)
 
-    # We store the goal in a tuple but do not add it as a regular node.
     goal_node = tuple(goal)
 
     # -----------------------------
@@ -236,7 +214,7 @@ def rrt_star(start, goal, obstacles):
         if i % 100 == 0:
             print(f"[DEBUG] Processing node {i} / {MAX_NODES}")
 
-        # Sample a random state or bias toward the goal
+        # Sample a random state
         rand_state = goal if random.random() < GOAL_BIAS else (
             random.uniform(-ENVIRONMENT_BOUNDS, ENVIRONMENT_BOUNDS),
             random.uniform(-ENVIRONMENT_BOUNDS, ENVIRONMENT_BOUNDS),
@@ -247,49 +225,59 @@ def rrt_star(start, goal, obstacles):
         _, nearest_idx = kd_tree.query(rand_state[:2])
         nearest = nodes[nearest_idx]
 
-        # Steer from 'nearest' toward 'rand_state' using bicycle constraints
-        new_state = steer_toward(nearest, rand_state, obstacles, max_distance=MAX_CONNECTION_DISTANCE)
-        if new_state is None:
-            # Debugging statement:
-            # print("[DEBUG] No valid extension found.")
-            continue  # collision or no extension
+        # Steer from 'nearest' toward 'rand_state'
+        new_states = steer_toward(nearest, rand_state, obstacles, max_distance=MAX_CONNECTION_DISTANCE)
+        if not new_states:
+            continue
 
-        # Add to tree
-        new_cost = costs[tuple(nearest)] + precompute_distance(nearest, new_state)
-        kd_tree = add_node(new_state, nodes, kd_tree)
-        parents[tuple(new_state)] = nearest
-        costs[tuple(new_state)] = new_cost
+        # Add all intermediate states internally for the algorithm
+        prev_state = nearest
+        for sub_state in new_states:
+            segment_cost = precompute_distance(prev_state, sub_state)
+            new_cost = costs[tuple(prev_state)] + segment_cost
 
-        edge_ids[tuple(new_state)] = p.addUserDebugLine(
-            [nearest[0], nearest[1], 0.1],
-            [new_state[0], new_state[1], 0.1],
-            [1, 0, 0],
-            lineWidth=1.0
-        )
+            kd_tree = add_node(sub_state, nodes, kd_tree)
+            parents[tuple(sub_state)] = prev_state
+            costs[tuple(sub_state)] = new_cost
 
-        # -----------------------------
-        # Rewire nearby nodes
-        # -----------------------------
-        for idx in kd_tree.query_ball_point(new_state[:2], RADIUS):
+            edge_ids[tuple(sub_state)] = p.addUserDebugLine(
+                [prev_state[0], prev_state[1], 0.1],
+                [sub_state[0], sub_state[1], 0.1],
+                [1, 0, 0],
+                lineWidth=1.0
+            )
+
+            prev_state = sub_state
+
+        last_sub_state = new_states[-1]
+        plot_nodes.append(last_sub_state)
+
+        # (Rewire logic stays the same)
+        last_new_state = new_states[-1]
+        last_new_cost = costs[tuple(last_new_state)]
+        near_indices = kd_tree.query_ball_point(last_new_state[:2], RADIUS)
+        if len(near_indices) > 10:
+            near_indices = random.sample(near_indices, 10)
+        for idx in near_indices:
             near_node = nodes[idx]
-            # Check collision from new_state to near_node
-            if is_edge_collision_free(new_state, near_node, obstacles):
-                potential_cost = new_cost + precompute_distance(new_state, near_node)
+            if near_node == last_new_state:
+                continue
+            if is_edge_collision_free(last_new_state, near_node, obstacles):
+                potential_cost = last_new_cost + precompute_distance(last_new_state, near_node)
                 if potential_cost < costs[tuple(near_node)]:
-                    # Remove old debug line
                     if tuple(near_node) in edge_ids:
                         p.removeUserDebugItem(edge_ids[tuple(near_node)])
-                    parents[tuple(near_node)] = new_state
+                    parents[tuple(near_node)] = last_new_state
                     costs[tuple(near_node)] = potential_cost
                     edge_ids[tuple(near_node)] = p.addUserDebugLine(
-                        [new_state[0], new_state[1], 0.1],
+                        [last_new_state[0], last_new_state[1], 0.1],
                         [near_node[0], near_node[1], 0.1],
                         [0, 1, 0],
                         lineWidth=1.0
                     )
 
     # -----------------------------
-    # Connect to Goal
+    # Attempt to connect to Goal
     # -----------------------------
     for idx in kd_tree.query_ball_point(goal[:2], RADIUS):
         near_node = nodes[idx]
@@ -321,19 +309,22 @@ def rrt_star(start, goal, obstacles):
             cur = parents.get(tuple(cur))
         best_path.reverse()
 
-        # Simplify path
-        simplified_path = simplify_path(best_path, obstacles)
-        total_cost = sum(precompute_distance(simplified_path[i], simplified_path[i + 1])
-                         for i in range(len(simplified_path) - 1))
-        print(f"Simplified path cost: {total_cost:.2f}")
-        # best_path = simplified_path
+        
+        # simplified_path = simplify_path(best_path, obstacles)
 
-    return best_path, nodes
+        total_cost = sum(
+            compute_distance(best_path[i], best_path[i + 1])
+            for i in range(len(best_path) - 1)
+        )
 
+        print(f"Path length: {total_cost:.2f}")
 
-# --------------------------
-# Calculate the Steering Input
-# --------------------------
+        # simplified_path = best_path  # perhaps not simplify
+
+        return best_path, nodes, plot_nodes
+    else:
+        return None, nodes, plot_nodes
+
 def calculate_steering_input(path):
     steering_input = 0
     for i in range(1, len(path) - 1):
@@ -341,25 +332,21 @@ def calculate_steering_input(path):
         node2 = path[i]
         node3 = path[i + 1]
         
-        v1 = np.array([node2[0] - node1[0], node2[1] - node1[1]])  # Vector from node1 to node2
-        v2 = np.array([node3[0] - node2[0], node3[1] - node2[1]])  # Vector from node2 to node3
+        v1 = np.array([node2[0] - node1[0], node2[1] - node1[1]])  
+        v2 = np.array([node3[0] - node2[0], node3[1] - node2[1]])  
         
         dot_product = np.dot(v1, v2)
         magnitude_v1 = np.linalg.norm(v1)
         magnitude_v2 = np.linalg.norm(v2)
         
-        cos_theta = dot_product / (magnitude_v1 * magnitude_v2)
-                
+        cos_theta = dot_product / (magnitude_v1 * magnitude_v2 + 1e-9)
+        cos_theta = np.clip(cos_theta, -1.0, 1.0)
         angle = np.arccos(cos_theta)
         
         steering_input += angle
     
     return steering_input
 
-
-# --------------------------
-# Moving the Fire Truck
-# --------------------------
 def move_fire_truck_along_path(path, fire_truck):
     """Moves the fire truck in PyBullet simulation along the path."""
     for state in path:
@@ -370,14 +357,15 @@ def move_fire_truck_along_path(path, fire_truck):
         p.stepSimulation()
         time.sleep(0.05)
 
-
-# ----------------------
-# Visualization (matplotlib)
-# ----------------------
-def visualize_path(path, obstacles, start, goal, nodes):
-    """Visualizes the path, obstacles, start, and goal using matplotlib."""
+def visualize_path(path, obstacles, start, goal, nodes, total_distance=0.0, steering_sum=0.0):
+    """
+    Visualizes the path, obstacles, start, and goal using matplotlib,
+    and shows total number of nodes, the total distance, and steering sum.
+    """
     plt.figure(figsize=(10, 10))
+    print("Building the plot... may take some time")
 
+    # Draw obstacles
     for obs_x, obs_y, _ in obstacles:
         square = plt.Rectangle(
             (obs_x - 0.5, obs_y - 0.5),
@@ -386,10 +374,13 @@ def visualize_path(path, obstacles, start, goal, nodes):
             fill=True
         )
         plt.gca().add_patch(square)
-    for node_x, node_y, _ in nodes:
-        plt.scatter(node_x, node_y, c='orange', s=15, marker="o")
-    plt.scatter(node_x, node_y, c='orange', s=15, label="Nodes", marker="o")
 
+    # Draw all nodes
+    for node_x, node_y, _ in nodes:
+        plt.scatter(node_x, node_y, c='orange', s=5, marker="o")
+    plt.scatter([], [], c='orange', s=15, label="Nodes", marker="o")  # For legend
+
+    # Draw path
     if path:
         path_x = [state[0] for state in path]
         path_y = [state[1] for state in path]
@@ -398,6 +389,7 @@ def visualize_path(path, obstacles, start, goal, nodes):
     else:
         print("[DEBUG] No path to visualize.")
 
+    # Draw start & goal
     plt.scatter(start[0], start[1], c='green', s=200, label="Start", marker="o")
     plt.scatter(goal[0], goal[1], c='purple', s=200, label="Goal", marker="X")
 
@@ -405,16 +397,18 @@ def visualize_path(path, obstacles, start, goal, nodes):
     plt.ylim(-ENVIRONMENT_BOUNDS, ENVIRONMENT_BOUNDS)
     plt.axis('equal')
     plt.grid(which='both', color='gray', linestyle='--', linewidth=0.5)
-    plt.legend()
-    plt.title("RRT* Path Planning (Bicycle Model)")
+
+    # Construct a title that includes performance info
+    title_text = (f"RRT* Path Planning (Bicycle Model)\n"
+                  f"Nodes: {len(nodes)}   "
+                  f"Distance: {total_distance:.2f}   "
+                  f"Steering Sum: {steering_sum:.2f}")
+    plt.title(title_text)
     plt.xlabel("X")
     plt.ylabel("Y")
+    plt.legend()
     plt.show()
 
-
-# -----------
-# Main Script
-# -----------
 if __name__ == "__main__":
     p.connect(p.GUI)
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -428,21 +422,40 @@ if __name__ == "__main__":
     start = (-4, 2, 0)
     goal = (6, -3, 0)
 
-    fire_truck = p.loadURDF("../urdf/fire_truck.urdf", [start[0], start[1], 0.1], [0, 0, 0, 1])
+    fire_truck = p.loadURDF("../urdf/fire_truck.urdf", 
+                            [start[0], start[1], 0.1], 
+                            [0, 0, 0, 1])
 
     obstacles = create_environment2(goal)
     print("Goal:", goal)
 
-    path, nodes = rrt_star(start, goal, obstacles)
-    steering_input = calculate_steering_input(path)
-
+    path, all_nodes, plot_nodes = rrt_star(start, goal, obstacles)
     if path:
         print("Path found!")
-        np.savetxt("best_path.csv", path, delimiter=",")
-        # print(path)
+        # Compute performance measures
+        total_distance = 0.0
+        for i in range(len(path) - 1):
+            total_distance += compute_distance(path[i], path[i + 1])
+        steering_input = calculate_steering_input(path)
+        
         print("Steering input:", steering_input)
+        print("Total path distance:", total_distance)
+        np.savetxt("../csv_files/G33_rrt_star.csv", path, delimiter=",", header="x,y,z")
+        np.savetxt("../csv_files/obstacles.csv", obstacles, delimiter=",", header="x,y,z")
+        # Move the vehicle along the path (optional)
         move_fire_truck_along_path(path, fire_truck)
-        visualize_path(path, obstacles, start, goal, nodes)
+
+        # Visualize the path and include the new performance stats
+        visualize_path(
+            path,
+            obstacles,
+            start,
+            goal,
+            plot_nodes,
+            total_distance=total_distance,
+            steering_sum=steering_input
+        )
+
     else:
         print("No path found.")
 

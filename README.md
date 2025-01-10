@@ -52,11 +52,11 @@ This simulation is ideal for testing robotic control systems and planners in a r
    ```
 
 This runs the three scripts:
-**rrt_star33_final.py**, **mpc_constraints.py** and **simulation.py** in a row.
+**G33_rrt_star.py**, **mpc_constraints.py** and **simulation.py** in a row.
 If desired, the three scripts can be run separately:
 1. To run the global planner:
    ```bash
-   python3 rrt_star33_final.py
+   python3 G33_rrt_star.py
    ```
 
 2. To run the local planner:

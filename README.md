@@ -67,7 +67,7 @@ This command runs the RRT* algirthm to find the global path from start to goal. 
    ```bash
    python3 mpc_constraints.py
    ```
-This runs the MPC algorithm to follow the global path and creates a file of the found local path named 'MPC_path.csv' in the 'csv_files' directory, again, overwriting any files of the same name.
+This runs the MPC algorithm to follow the global path and creates a file of the found local path named 'MPC_path.csv' in the 'csv_files' directory, again, overwriting any files of the same name. Note that the MPC local planner can either be run on the RRT or RRT* generated path. This can be done by (un)commenting the corresponding input line specified at the top of the code. Similar for the adjusted obstacle environment to validate the obstacle avoidance of the MPC.
 
 3. To simulate the movement of the robot in the environment:
    ```bash

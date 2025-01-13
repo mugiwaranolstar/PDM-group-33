@@ -1,8 +1,8 @@
 # PDM-group-33
 
-# Fire Truck Simulation with Planner Integration 🚒
+# Car Simulation with Planner Integration 🚒
 
-This project simulates a simplified fire truck robot in a virtual environment. It combines a custom **URDF model** of the fire truck with a **path-planning algorithm** that enables the robot to navigate through obstacles to reach a target building.
+This project simulates a simplified car robot in a virtual environment. It combines a custom **URDF model** of the car with a **path-planning algorithm** that enables the robot to navigate through obstacles to reach a target building.
 
 ![Robot Animation](Media/pyBullet_simulation.gif)
 
@@ -10,8 +10,8 @@ This project simulates a simplified fire truck robot in a virtual environment. I
 
 ## Overview
 The project demonstrates the integration of:
-- A **simplified fire truck URDF model**, showcasing the vehicle's key features such as wheels and a chassis.
-- A **custom planner** that allows the fire truck to:
+- A **simplified car URDF model**, showcasing the vehicle's key features such as wheels and a chassis.
+- A **custom planner** that allows the car to:
   1. Navigate through an environment with static obstacles.
   2. Reach a designated target (e.g., a building).
   3. Adapt to various environments based on the vehicle's kinematic constraints
@@ -21,13 +21,13 @@ This simulation is ideal for testing robotic control systems and planners in a r
 ---
 
 ## Features
-- **Simplified Fire Truck URDF Model**:
+- **Simplified car URDF Model**:
   - Includes basic geometry for wheels and a chassis.
   - Configurable for different scenarios and dimensions.
   
 - **Path Planning**:
   - Uses RRT* to find the optimal path from start to finish avoiding while static obstacles.
-  - Utilizes the MPC method to optimize and follow the path, respecting the kinematic constraints of the fire truck.
+  - Utilizes the MPC method to optimize and follow the path, respecting the kinematic constraints of the car.
 
 ---
 

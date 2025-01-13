@@ -1,6 +1,6 @@
 # PDM-group-33
 
-# Car Simulation with Planner Integration 🚒
+# Car Simulation with Planner Integration
 
 This project simulates a simplified car robot in a virtual environment. It combines a custom **URDF model** of the car with a **path-planning algorithm** that enables the robot to navigate through obstacles to reach a target building.
 
